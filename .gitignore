@@ -1,0 +1,72 @@
+# ─── Variables de entorno y secretos ──────────────────────────────────────────
+# NUNCA subir al repositorio
+.env
+.env.local
+.env.production
+.env.staging
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# Las plantillas de ejemplo SÍ se incluyen, pero asegúrate de que
+# no contengan claves reales, solo placeholders como "TU_CLAVE_AQUI"
+!.env.example
+!backend/.env.example
+# ⚠️  ADVERTENCIA: Revisar backend/.env.example antes de cada commit.
+#     No debe contener claves reales, solo placeholders.
+
+# ⚠️  ADVERTENCIA: backend/app/core/config.py contiene valores por defecto
+#     hardcodeados (DATABASE_URL, SECRET_KEY). Este fichero SÍ se sube al repo.
+#     Asegúrate de que esos defaults no sean credenciales de producción reales.
+
+# Ficheros de override de Docker (suelen tener secretos locales)
+docker-compose.override.yml
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── Tests y cobertura ────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+
+# ─── Node / Frontend ──────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+*.tsbuildinfo
+
+# ─── Base de datos ────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── IDEs y editores ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── macOS / Windows ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
