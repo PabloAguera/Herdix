@@ -28,8 +28,11 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 - **Axios** — Cliente HTTP
 
 ### Infraestructura
-- **Docker Compose** — Orquestación de servicios (PostgreSQL + Backend)
-- **Groq API** — Inferencia LLM gratuita (modelo `llama-3.3-70b-versatile`)
+- **Docker Compose** — Orquestación de servicios en local (PostgreSQL + Backend)
+- **Groq API** — Inferencia LLM gratuita (modelo `openai/gpt-oss-120b`)
+- **Vercel** — Hosting del frontend (build estático + PWA instalable)
+- **Render** — Hosting del backend (contenedor Docker)
+- **Neon** — PostgreSQL gestionado en la nube (capa gratuita)
 
 ---
 
@@ -92,6 +95,11 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 - Buscador en la barra superior que filtra animales del censo por nombre o crotal en tiempo real
 - Navega directamente al detalle del animal seleccionado
 
+### PWA (app instalable)
+- El frontend es una **Progressive Web App**: se puede instalar en el móvil (Android/iOS) o en el escritorio directamente desde el navegador, sin pasar por una tienda de aplicaciones
+- Una vez instalada, se abre a pantalla completa como una app nativa, sin barra de navegador
+- Funciona offline para la carga inicial de la interfaz (los datos siempre requieren conexión, no se cachean)
+
 ### Asistente IA
 - Chat en lenguaje natural para consultar datos de la ganadería
 - Basado en Groq (gratuito, 14.000 peticiones/día)
@@ -122,8 +130,10 @@ herdly/
 │   │   ├── routers/       # Endpoints API
 │   │   └── schemas/       # Esquemas Pydantic
 │   ├── alembic/           # Migraciones de base de datos
+│   ├── entrypoint.sh      # Arranque en producción (migra + levanta uvicorn en $PORT)
 │   └── requirements.txt
 ├── frontend/
+│   ├── public/             # Iconos PWA, manifest, assets estáticos
 │   ├── src/
 │   │   ├── api/           # Clientes Axios por recurso
 │   │   ├── components/    # Componentes reutilizables (layout + ui)
@@ -131,8 +141,10 @@ herdly/
 │   │   ├── router/        # Definición de rutas
 │   │   ├── stores/        # Stores Zustand
 │   │   └── types/         # Tipos TypeScript
+│   ├── vercel.json         # Fallback SPA para Vercel
 │   └── package.json
 ├── docker-compose.yml
+├── render.yaml             # Blueprint de despliegue del backend en Render
 └── .env
 ```
 
@@ -140,9 +152,18 @@ herdly/
 
 ## Variables de entorno
 
-Crear un archivo `.env` en la raíz del proyecto:
+Crear un archivo `.env` en la raíz del proyecto (el mismo directorio que `docker-compose.yml`). **Importante:** `docker-compose.yml` interpola sus valores desde este `.env` de la raíz, no desde `backend/.env` — ambos deben mantenerse sincronizados si se usan los dos.
 
 ```env
+# Base de datos
+POSTGRES_USER=herdly
+POSTGRES_PASSWORD=herdly_secret
+POSTGRES_DB=herdly_db
+
+# Seguridad JWT
+SECRET_KEY=xxxxxxxxxxxxxxxxxxxx  # generar con: openssl rand -hex 32
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
 # Groq API (gratuito en console.groq.com)
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
 
@@ -150,14 +171,21 @@ GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
 ALLOWED_EMAILS=tu@email.com,otro@email.com
 ```
 
-Variables internas del backend (configuradas en `docker-compose.yml`):
+Variables internas del backend (configuradas en `docker-compose.yml`, con valor por defecto si no están en el `.env`):
 
 | Variable | Valor por defecto | Descripción |
 |---|---|---|
-| `DATABASE_URL` | postgresql://herdly:herdly_secret@db/herdly_db | Conexión a PostgreSQL |
+| `DATABASE_URL` | postgresql://herdly:herdly_secret@db/herdly_db | Conexión a PostgreSQL (compuesta a partir de `POSTGRES_USER/PASSWORD/DB`) |
 | `SECRET_KEY` | (cambiar en producción) | Clave para firmar JWT |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 60 | Expiración del token |
-| `AGENTE_MODEL` | llama-3.3-70b-versatile | Modelo LLM del agente |
+| `AGENTE_MODEL` | `openai/gpt-oss-120b` | Modelo LLM del agente (Groq retiró `llama-3.3-70b-versatile` el 17/06/2026) |
+| `CORS_ORIGINS` | `https://herdly.vercel.app,http://localhost:5173` | Dominios permitidos para llamar a la API (separados por comas). Solo aplica en producción; en local se permite cualquier origen |
+
+Variable del **frontend** (Vite, solo necesaria en producción):
+
+| Variable | Descripción |
+|---|---|
+| `VITE_API_URL` | URL completa del backend desplegado, ej. `https://herdly-backend.onrender.com`. En local no hace falta: se usa el proxy de Vite hacia `/api` |
 
 ---
 
@@ -191,6 +219,48 @@ docker exec herdly_backend alembic upgrade head
 
 ---
 
+## Despliegue en producción
+
+Stack pensado para la capa gratuita, dimensionado para ~70-100 usuarios totales y ~20 concurrentes en pico:
+
+- **Neon** (PostgreSQL gestionado, capa gratuita permanente)
+- **Render** (backend en Docker, capa gratuita — se "duerme" tras 15 min sin uso y tarda 30-60s en despertar en la siguiente petición)
+- **Vercel** (frontend estático + PWA, capa gratuita)
+
+### 1. Base de datos (Neon)
+1. Crear cuenta en [neon.tech](https://neon.tech) y un proyecto nuevo.
+2. Copiar la **connection string "pooled"** (no la directa) — Neon la muestra en el dashboard del proyecto.
+3. Guardarla, se usará como `DATABASE_URL` en Render.
+
+### 2. Backend (Render)
+1. Crear cuenta en [render.com](https://render.com) y conectar el repositorio `PabloAguera/Herdix`.
+2. Render detectará el `render.yaml` de la raíz del repo (Blueprint) y propondrá crear el servicio `herdly-backend` automáticamente. Si prefieres crearlo a mano: **New → Web Service**, runtime **Docker**, `dockerfilePath: backend/Dockerfile`, `dockerContext: backend`.
+3. Rellenar las variables de entorno marcadas como manuales en el Blueprint (o en Settings → Environment si se crea a mano):
+   - `DATABASE_URL` → la connection string pooled de Neon
+   - `GROQ_API_KEY` → tu clave de [console.groq.com](https://console.groq.com)
+   - `ALLOWED_EMAILS` → tus emails autorizados, separados por comas
+   - `CORS_ORIGINS` → se rellena en el paso 4, una vez se conozca la URL de Vercel
+   - `SECRET_KEY` se genera sola (`generateValue: true` en el Blueprint); si se crea a mano, generarla con `openssl rand -hex 32`
+4. Al desplegar, Render asigna una URL tipo `https://herdly-backend.onrender.com`. Anotarla, se usará como `VITE_API_URL` en Vercel.
+
+### 3. Frontend (Vercel)
+1. Crear cuenta en [vercel.com](https://vercel.com) e importar el mismo repositorio.
+2. En la configuración del proyecto, **Root Directory** → `frontend` (importante, si no Vercel intentará compilar el repo entero).
+3. Añadir la variable de entorno `VITE_API_URL` con la URL de Render del paso anterior (ej. `https://herdly-backend.onrender.com`).
+4. Desplegar. Vercel asigna una URL tipo `https://herdly.vercel.app`.
+
+### 4. Cerrar el círculo (CORS)
+Volver a Render y actualizar `CORS_ORIGINS` con la URL final de Vercel (ej. `https://herdly.vercel.app`), separando por comas si hay más de un dominio. Redesplegar el backend para que aplique el cambio.
+
+### 5. Instalar como app en el móvil
+Con el frontend desplegado en Vercel (HTTPS, requisito de las PWA):
+- **Android (Chrome)**: menú ⋮ → "Instalar aplicación" o "Añadir a pantalla de inicio".
+- **iOS (Safari)**: botón compartir → "Añadir a pantalla de inicio".
+
+La app queda con su propio icono, se abre a pantalla completa y no requiere abrir el navegador manualmente.
+
+---
+
 ## Roles y permisos
 
 | Acción | Admin | Colaborador |
@@ -221,4 +291,6 @@ Los cambios relevantes se registran aquí al modificar funcionalidades existente
 
 | Fecha | Cambio |
 |---|---|
+| 2026-08-23 | Preparado el despliegue en producción (Vercel + Render + Neon): `entrypoint.sh` para aplicar migraciones y respetar el puerto dinámico de Render; `CORS_ORIGINS` configurable por variable de entorno en `main.py`; pool de conexiones a BD dimensionado para ~20 usuarios concurrentes (`pool_size=10, max_overflow=10`); `VITE_API_URL` para apuntar el frontend al backend desplegado; `vercel.json` con fallback SPA; `render.yaml` como Blueprint del backend. Añadido soporte **PWA** instalable (manifest, iconos, service worker vía `vite-plugin-pwa`) para poder instalar la app en el móvil sin pasar por el navegador. |
+| 2026-08-23 | Cambiado el modelo por defecto del agente a `openai/gpt-oss-120b` (Groq retiró `llama-3.3-70b-versatile` el 17/06/2026, provocaba error 404 al chatear con el asistente). Añadida `AGENTE_MODEL` a `docker-compose.yml`. Corregido el `.env` de la raíz, que le faltaban `POSTGRES_USER/PASSWORD/DB`, `DATABASE_URL` y `SECRET_KEY` (causaba fallo de login al recrear los contenedores). Corregido el esquema de las herramientas del agente (`agente.py`) para aceptar `null` en parámetros opcionales — el nuevo modelo los envía explícitamente y Groq rechazaba la llamada con error 400 (`tool_use_failed`). Corregido también un fallo en `_hijos_de_animal` que rompía con `AttributeError` al recibir `null` en `crotal`/`nombre`. |
 | 2026-06-12 | Versión inicial documentada. Migración del agente de Anthropic a Groq (OpenAI SDK). Lista blanca de emails para registro. |

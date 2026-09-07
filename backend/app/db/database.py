@@ -6,8 +6,8 @@ from app.core.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,       # Detecta conexiones caídas automáticamente
-    pool_size=10,
-    max_overflow=20,
+    pool_size=10,             # Dimensionado para ~20 usuarios concurrentes en pico
+    max_overflow=10,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

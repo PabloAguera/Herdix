@@ -1,7 +1,12 @@
 import axios from "axios";
 
+// En desarrollo local, "/api" pasa por el proxy de Vite hacia localhost:8000.
+// En producción (Vercel), no hay proxy, así que se usa la URL completa del backend
+// definida en la variable de entorno VITE_API_URL (configurada en el panel de Vercel).
+const baseURL = import.meta.env.VITE_API_URL || "/api";
+
 const apiClient = axios.create({
-  baseURL: "/api", // el proxy de Vite redirige a localhost:8000
+  baseURL,
   headers: { "Content-Type": "application/json" },
 });
 

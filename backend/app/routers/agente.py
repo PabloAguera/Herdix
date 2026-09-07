@@ -67,10 +67,10 @@ HERRAMIENTAS: list[dict] = [
     _tool("listar_animales",
         "Lista los animales del censo activo con filtros opcionales. Devuelve crotal, nombre, sexo, rol, raza y fecha de nacimiento.",
         {"type": "object", "properties": {
-            "sexo": {"type": "string", "enum": ["hembra", "macho"], "description": "Filtrar por sexo"},
-            "rol": {"type": "string", "enum": ["madre", "padre", "recría"], "description": "Filtrar por rol"},
-            "raza": {"type": "string", "description": "Filtro parcial por nombre de raza"},
-            "nombre": {"type": "string", "description": "Filtro parcial por nombre del animal"},
+            "sexo": {"type": ["string", "null"], "enum": ["hembra", "macho", None], "description": "Filtrar por sexo"},
+            "rol": {"type": ["string", "null"], "enum": ["madre", "padre", "recría", None], "description": "Filtrar por rol"},
+            "raza": {"type": ["string", "null"], "description": "Filtro parcial por nombre de raza"},
+            "nombre": {"type": ["string", "null"], "description": "Filtro parcial por nombre del animal"},
         }, "required": []}),
     _tool("detalle_animal",
         "Obtiene todos los datos de un animal concreto (en censo o historial) a partir de su crotal. "
@@ -81,37 +81,37 @@ HERRAMIENTAS: list[dict] = [
     _tool("listar_nacimientos",
         "Lista los nacimientos registrados, opcionalmente filtrados por año, sexo de la cría o nombre/crotal de la madre.",
         {"type": "object", "properties": {
-            "anio": {"type": "integer", "description": "Año concreto. Omitir para todos los años."},
-            "sexo": {"type": "string", "enum": ["macho", "hembra"], "description": "Filtrar por sexo de la cría."},
-            "crotal_madre": {"type": "string", "description": "Crotal exacto de la madre."},
-            "nombre_madre": {"type": "string", "description": "Nombre parcial de la madre."},
+            "anio": {"type": ["integer", "null"], "description": "Año concreto. Omitir para todos los años."},
+            "sexo": {"type": ["string", "null"], "enum": ["macho", "hembra", None], "description": "Filtrar por sexo de la cría."},
+            "crotal_madre": {"type": ["string", "null"], "description": "Crotal exacto de la madre."},
+            "nombre_madre": {"type": ["string", "null"], "description": "Nombre parcial de la madre."},
         }, "required": []}),
     _tool("hijos_de_animal",
         "Dado el nombre o crotal de un animal, devuelve todas sus crías con sexo, fecha y datos de venta si aplica. "
         "Úsala cuando se pregunte por los hijos, terneros, potros o crías de un animal concreto.",
         {"type": "object", "properties": {
-            "nombre": {"type": "string", "description": "Nombre del animal (búsqueda parcial)."},
-            "crotal": {"type": "string", "description": "Crotal exacto del animal."},
-            "sexo_cria": {"type": "string", "enum": ["macho", "hembra"], "description": "Filtrar crías por sexo."},
+            "nombre": {"type": ["string", "null"], "description": "Nombre del animal (búsqueda parcial)."},
+            "crotal": {"type": ["string", "null"], "description": "Crotal exacto del animal."},
+            "sexo_cria": {"type": ["string", "null"], "enum": ["macho", "hembra", None], "description": "Filtrar crías por sexo."},
         }, "required": []}),
     _tool("listar_salidas",
         "Lista el historial de salidas (ventas, muertes, sacrificios, depredadores, etc.), opcionalmente filtradas.",
         {"type": "object", "properties": {
-            "anio": {"type": "integer", "description": "Año concreto. Omitir para todos."},
-            "motivo": {"type": "string", "description": "Motivo: venta, muerte_natural, sacrificio, depredador, otro"},
+            "anio": {"type": ["integer", "null"], "description": "Año concreto. Omitir para todos."},
+            "motivo": {"type": ["string", "null"], "description": "Motivo: venta, muerte_natural, sacrificio, depredador, otro"},
         }, "required": []}),
     _tool("listar_compras",
         "Lista las compras de animales registradas, opcionalmente filtradas por año. Incluye precio y vendedor.",
         {"type": "object", "properties": {
-            "anio": {"type": "integer", "description": "Año concreto. Omitir para todos."},
+            "anio": {"type": ["integer", "null"], "description": "Año concreto. Omitir para todos."},
         }, "required": []}),
     _tool("listar_ventas",
         "Lista las ventas con nombre del animal, comprador, precio, destino (carne/vida) y fecha. "
         "Úsala cuando se pregunte por compradores, precios de venta o destino de los animales vendidos.",
         {"type": "object", "properties": {
-            "anio": {"type": "integer", "description": "Año concreto. Omitir para todos."},
-            "comprador": {"type": "string", "description": "Filtro parcial por nombre del comprador."},
-            "crotal": {"type": "string", "description": "Crotal exacto del animal vendido."},
+            "anio": {"type": ["integer", "null"], "description": "Año concreto. Omitir para todos."},
+            "comprador": {"type": ["string", "null"], "description": "Filtro parcial por nombre del comprador."},
+            "crotal": {"type": ["string", "null"], "description": "Crotal exacto del animal vendido."},
         }, "required": []}),
     _tool("listar_prenyeces",
         "Lista las preñeces activas con nombre y crotal de madre, fecha de cubrición, fecha esperada de parto y días que quedan.",
@@ -372,8 +372,8 @@ def _listar_ventas(db: Session, ganaderia_id: int, params: dict) -> dict:
 
 def _hijos_de_animal(db: Session, ganaderia_id: int, params: dict) -> dict:
     # Buscar el animal por nombre o crotal
-    crotal = params.get("crotal", "").strip()
-    nombre = params.get("nombre", "").strip()
+    crotal = (params.get("crotal") or "").strip()
+    nombre = (params.get("nombre") or "").strip()
     sexo_cria = params.get("sexo_cria")
 
     animal = None

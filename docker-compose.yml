@@ -34,6 +34,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      AGENTE_MODEL: ${AGENTE_MODEL:-openai/gpt-oss-120b}
     ports:
       - "8000:8000"
     volumes:

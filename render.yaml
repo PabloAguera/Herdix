@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: herdly-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      # ─── Base de datos ──────────────────────────────────────────────────
+      # Debes crearla tú en Neon (ver README) y pegar aquí la connection
+      # string "pooled" que te da Neon. Márcala como "sync: false" en el
+      # panel de Render si prefieres pegarla manualmente en vez de por Blueprint.
+      - key: DATABASE_URL
+        sync: false
+
+      # ─── Seguridad JWT ──────────────────────────────────────────────────
+      # Genera un valor real con: openssl rand -hex 32
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+
+      # ─── IA (Groq) ──────────────────────────────────────────────────────
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AGENTE_MODEL
+        value: openai/gpt-oss-120b
+
+      # ─── Acceso ─────────────────────────────────────────────────────────
+      - key: ALLOWED_EMAILS
+        sync: false
+
+      # ─── CORS ───────────────────────────────────────────────────────────
+      # Dominio(s) del frontend en Vercel, separados por comas si hay varios.
+      # Ejemplo: https://herdly.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+
+      # ─── Entorno ────────────────────────────────────────────────────────
+      - key: ENVIRONMENT
+        value: production

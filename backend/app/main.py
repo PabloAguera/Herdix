@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,11 +15,18 @@ app = FastAPI(
 )
 
 # ─── CORS ──────────────────────────────────────────────────────────────────
-# En desarrollo permite cualquier origen; en producción restringir a dominios reales.
-origins = ["*"] if settings.is_development else [
-    "https://herdly.vercel.app",
-    "http://localhost:5173",
-]
+# En desarrollo permite cualquier origen.
+# En producción, se restringe a los dominios listados en la variable de entorno
+# CORS_ORIGINS (separados por comas), p. ej. "https://herdly.vercel.app,https://herdly.com".
+# Si no está definida, se usan los valores por defecto de abajo como red de seguridad.
+_cors_env = os.environ.get("CORS_ORIGINS", "")
+origins = (
+    ["*"] if settings.is_development
+    else [o.strip() for o in _cors_env.split(",") if o.strip()] or [
+        "https://herdly.vercel.app",
+        "http://localhost:5173",
+    ]
+)
 
 app.add_middleware(
     CORSMiddleware,

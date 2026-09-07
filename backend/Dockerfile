@@ -14,7 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el código fuente
 COPY . .
+RUN chmod +x entrypoint.sh
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# En docker-compose (desarrollo local) este CMD se sobreescribe con "command:".
+# En producción (Render u otro host que arranque el contenedor directamente)
+# se usa entrypoint.sh, que aplica migraciones y respeta el puerto ($PORT) de la plataforma.
+CMD ["./entrypoint.sh"]
