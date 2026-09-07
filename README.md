@@ -121,7 +121,7 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 ## Estructura del proyecto
 
 ```
-herdly/
+herdix/
 ├── backend/
 │   ├── app/
 │   │   ├── core/          # Configuración, seguridad, dependencias
@@ -179,13 +179,13 @@ Variables internas del backend (configuradas en `docker-compose.yml`, con valor 
 | `SECRET_KEY` | (cambiar en producción) | Clave para firmar JWT |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 60 | Expiración del token |
 | `AGENTE_MODEL` | `openai/gpt-oss-120b` | Modelo LLM del agente (Groq retiró `llama-3.3-70b-versatile` el 17/06/2026) |
-| `CORS_ORIGINS` | `https://herdly.vercel.app,http://localhost:5173` | Dominios permitidos para llamar a la API (separados por comas). Solo aplica en producción; en local se permite cualquier origen |
+| `CORS_ORIGINS` | `https://herdix.vercel.app,http://localhost:5173` | Dominios permitidos para llamar a la API (separados por comas). Solo aplica en producción; en local se permite cualquier origen |
 
 Variable del **frontend** (Vite, solo necesaria en producción):
 
 | Variable | Descripción |
 |---|---|
-| `VITE_API_URL` | URL completa del backend desplegado, ej. `https://herdly-backend.onrender.com`. En local no hace falta: se usa el proxy de Vite hacia `/api` |
+| `VITE_API_URL` | URL completa del backend desplegado, ej. `https://herdix-backend.onrender.com`. En local no hace falta: se usa el proxy de Vite hacia `/api` |
 
 ---
 
@@ -213,8 +213,8 @@ Las migraciones se aplican automáticamente al arrancar el contenedor del backen
 
 Para crear una nueva migración tras cambios en los modelos:
 ```bash
-docker exec herdly_backend alembic revision --autogenerate -m "descripcion"
-docker exec herdly_backend alembic upgrade head
+docker exec herdix_backend alembic revision --autogenerate -m "descripcion"
+docker exec herdix_backend alembic upgrade head
 ```
 
 ---
@@ -234,23 +234,23 @@ Stack pensado para la capa gratuita, dimensionado para ~70-100 usuarios totales 
 
 ### 2. Backend (Render)
 1. Crear cuenta en [render.com](https://render.com) y conectar el repositorio `PabloAguera/Herdix`.
-2. Render detectará el `render.yaml` de la raíz del repo (Blueprint) y propondrá crear el servicio `herdly-backend` automáticamente. Si prefieres crearlo a mano: **New → Web Service**, runtime **Docker**, `dockerfilePath: backend/Dockerfile`, `dockerContext: backend`.
+2. Render detectará el `render.yaml` de la raíz del repo (Blueprint) y propondrá crear el servicio `herdix-backend` automáticamente. Si prefieres crearlo a mano: **New → Web Service**, runtime **Docker**, `dockerfilePath: backend/Dockerfile`, `dockerContext: backend`.
 3. Rellenar las variables de entorno marcadas como manuales en el Blueprint (o en Settings → Environment si se crea a mano):
    - `DATABASE_URL` → la connection string pooled de Neon
    - `GROQ_API_KEY` → tu clave de [console.groq.com](https://console.groq.com)
    - `ALLOWED_EMAILS` → tus emails autorizados, separados por comas
    - `CORS_ORIGINS` → se rellena en el paso 4, una vez se conozca la URL de Vercel
    - `SECRET_KEY` se genera sola (`generateValue: true` en el Blueprint); si se crea a mano, generarla con `openssl rand -hex 32`
-4. Al desplegar, Render asigna una URL tipo `https://herdly-backend.onrender.com`. Anotarla, se usará como `VITE_API_URL` en Vercel.
+4. Al desplegar, Render asigna una URL tipo `https://herdix-backend.onrender.com`. Anotarla, se usará como `VITE_API_URL` en Vercel.
 
 ### 3. Frontend (Vercel)
 1. Crear cuenta en [vercel.com](https://vercel.com) e importar el mismo repositorio.
 2. En la configuración del proyecto, **Root Directory** → `frontend` (importante, si no Vercel intentará compilar el repo entero).
-3. Añadir la variable de entorno `VITE_API_URL` con la URL de Render del paso anterior (ej. `https://herdly-backend.onrender.com`).
-4. Desplegar. Vercel asigna una URL tipo `https://herdly.vercel.app`.
+3. Añadir la variable de entorno `VITE_API_URL` con la URL de Render del paso anterior (ej. `https://herdix-backend.onrender.com`).
+4. Desplegar. Vercel asigna una URL tipo `https://herdix.vercel.app`.
 
 ### 4. Cerrar el círculo (CORS)
-Volver a Render y actualizar `CORS_ORIGINS` con la URL final de Vercel (ej. `https://herdly.vercel.app`), separando por comas si hay más de un dominio. Redesplegar el backend para que aplique el cambio.
+Volver a Render y actualizar `CORS_ORIGINS` con la URL final de Vercel (ej. `https://herdix.vercel.app`), separando por comas si hay más de un dominio. Redesplegar el backend para que aplique el cambio.
 
 ### 5. Instalar como app en el móvil
 Con el frontend desplegado en Vercel (HTTPS, requisito de las PWA):

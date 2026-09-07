@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: herdly-backend
+    name: herdix-backend
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
@@ -34,7 +34,7 @@ services:
 
       # ─── CORS ───────────────────────────────────────────────────────────
       # Dominio(s) del frontend en Vercel, separados por comas si hay varios.
-      # Ejemplo: https://herdly.vercel.app
+      # Ejemplo: https://herdix.vercel.app
       - key: CORS_ORIGINS
         sync: false
 

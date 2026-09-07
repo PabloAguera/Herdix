@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.routers import auth, ganaderias, animales, ventas, compras, reproduccion, agente
 
 app = FastAPI(
-    title="Herdly API",
+    title="Herdix API",
     description="API de gestión ganadera vacuna",
     version="0.1.0",
     docs_url="/docs",
@@ -17,13 +17,13 @@ app = FastAPI(
 # ─── CORS ──────────────────────────────────────────────────────────────────
 # En desarrollo permite cualquier origen.
 # En producción, se restringe a los dominios listados en la variable de entorno
-# CORS_ORIGINS (separados por comas), p. ej. "https://herdly.vercel.app,https://herdly.com".
+# CORS_ORIGINS (separados por comas), p. ej. "https://herdix.vercel.app,https://herdix.com".
 # Si no está definida, se usan los valores por defecto de abajo como red de seguridad.
 _cors_env = os.environ.get("CORS_ORIGINS", "")
 origins = (
     ["*"] if settings.is_development
     else [o.strip() for o in _cors_env.split(",") if o.strip()] or [
-        "https://herdly.vercel.app",
+        "https://herdix.vercel.app",
         "http://localhost:5173",
     ]
 )
