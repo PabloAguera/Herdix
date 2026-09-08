@@ -492,7 +492,7 @@ export function AnimalesPage() {
           )}
         </Card>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border overflow-x-auto">
           <table className="w-full">
             <thead className="bg-primary/10 border-b border-primary/20">
               <tr>

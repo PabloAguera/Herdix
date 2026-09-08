@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { LogOut, User, Search, X } from "lucide-react";
+import { LogOut, User, Search, X, Menu } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useGanaderiaStore } from "@/stores/ganaderiaStore";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ function BuscadorGlobal() {
   if (!ganaderiaActual) return null;
 
   return (
-    <div ref={containerRef} className="relative w-72">
+    <div ref={containerRef} className="relative w-full max-w-[180px] sm:max-w-xs">
       <div className="relative flex items-center">
         <Search className="absolute left-3 h-4 w-4 text-muted-foreground pointer-events-none" />
         <input
@@ -117,7 +117,12 @@ function BuscadorGlobal() {
   );
 }
 
-export function TopBar() {
+interface TopBarProps {
+  /** Abre el menú lateral en móvil (oculto en escritorio). */
+  onMenuClick?: () => void;
+}
+
+export function TopBar({ onMenuClick }: TopBarProps) {
   const { usuario, logout } = useAuthStore();
   const { limpiar } = useGanaderiaStore();
   const navigate = useNavigate();
@@ -129,10 +134,19 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex h-16 items-center justify-between gap-4 border-b px-8">
-      <BuscadorGlobal />
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+    <header className="flex h-16 items-center justify-between gap-2 border-b px-3 sm:gap-4 sm:px-8">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+        <button
+          onClick={onMenuClick}
+          aria-label="Abrir menú"
+          className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <BuscadorGlobal />
+      </div>
+      <div className="flex items-center gap-1 sm:gap-3">
+        <div className="hidden items-center gap-2 text-sm font-medium text-muted-foreground sm:flex">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
             <User className="h-4 w-4" />
           </div>
@@ -140,7 +154,7 @@ export function TopBar() {
         </div>
         <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground">
           <LogOut className="h-4 w-4" />
-          Salir
+          <span className="hidden sm:inline">Salir</span>
         </Button>
       </div>
     </header>
