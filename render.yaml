@@ -20,7 +20,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: "60"
+        value: "43200"
 
       # ─── IA (Groq) ──────────────────────────────────────────────────────
       - key: GROQ_API_KEY
