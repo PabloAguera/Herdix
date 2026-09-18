@@ -10,6 +10,8 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +19,7 @@ import { useGanaderiaStore } from "@/stores/ganaderiaStore";
 import { useAgenteStore, type Mensaje, type Conversacion } from "@/stores/agenteStore";
 import { agenteApi } from "@/api/agente";
 import type { MensajeHistorial } from "@/api/agente";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 
 const SUGERENCIAS = [
   "¿Cuántos animales tengo en total?",
@@ -122,6 +125,46 @@ export function AgentePage() {
   // Ref para acceder al estado actual en el cleanup de useEffect
   const mensajesRef = useRef<Mensaje[]>([]);
   mensajesRef.current = mensajes;
+
+  // Dictado por voz: reconocimiento nativo del navegador (sin backend)
+  const baseTextoDictadoRef = useRef("");
+  const {
+    isSupported: microfonoSoportado,
+    isListening: escuchando,
+    start: iniciarDictado,
+    stop: detenerDictado,
+  } = useSpeechRecognition({
+    lang: "es-ES",
+    onResult: (texto, esFinal) => {
+      const base = baseTextoDictadoRef.current;
+      const separador = base && !base.endsWith(" ") ? " " : "";
+      setInput(base + separador + texto);
+      if (esFinal) baseTextoDictadoRef.current = "";
+    },
+    onError: (err) => {
+      if (err === "unsupported") {
+        setError(
+          "El dictado por voz no está disponible en este navegador. Prueba con Chrome o Edge."
+        );
+      } else if (err === "not-allowed" || err === "service-not-allowed") {
+        setError(
+          "Permiso de micrófono denegado. Actívalo en los ajustes del navegador para usar el dictado."
+        );
+      } else if (err !== "aborted" && err !== "no-speech") {
+        setError("No se pudo procesar el audio. Inténtalo de nuevo.");
+      }
+    },
+  });
+
+  const alternarDictado = () => {
+    if (escuchando) {
+      detenerDictado();
+      return;
+    }
+    setError(null);
+    baseTextoDictadoRef.current = input.trim();
+    iniciarDictado();
+  };
 
   const historial = ganaderiaActual ? getHistorial(ganaderiaActual.id) : [];
 
@@ -328,6 +371,23 @@ export function AgentePage() {
       {!modoLectura && (
         <div className="border-t px-4 py-4">
           <div className="flex items-end gap-2 max-w-3xl mx-auto">
+            <Button
+              type="button"
+              onClick={alternarDictado}
+              disabled={cargando || !microfonoSoportado}
+              variant={escuchando ? "destructive" : "outline"}
+              size="icon"
+              className={cn("shrink-0 h-11 w-11", escuchando && "animate-pulse")}
+              title={
+                !microfonoSoportado
+                  ? "Dictado por voz no disponible en este navegador"
+                  : escuchando
+                  ? "Detener dictado"
+                  : "Hablar en vez de escribir"
+              }
+            >
+              {escuchando ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
