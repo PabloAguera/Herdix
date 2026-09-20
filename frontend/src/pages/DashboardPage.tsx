@@ -50,13 +50,21 @@ export function DashboardPage() {
       animalesApi.listarPrenyeces(gid),
     ])
       .then(([animales, nacimientos, ventas, prenyeces]) => {
+        // El backend filtra por el campo "anio" de la venta, pero si algún registro
+        // tiene ese campo desincronizado de su fecha real, se cuela en el total.
+        // Filtramos aquí también por el año natural de la fecha exacta de venta
+        // para garantizar que solo se suma lo vendido en el año en curso.
+        const ventasAnioActual = ventas.filter((v: Venta) => {
+          const anioVenta = v.fecha_exacta ? new Date(v.fecha_exacta).getFullYear() : v.anio;
+          return anioVenta === anioActual;
+        });
         setStats({
           totalAnimales: animales.length,
           hembras: animales.filter((a: Animal) => a.sexo === "hembra").length,
           machos: animales.filter((a: Animal) => a.sexo === "macho").length,
           nacimientosAnio: nacimientos.length,
-          ventasAnio: ventas.length,
-          ingresosTotales: ventas.reduce((acc: number, v: Venta) => acc + parseFloat(v.precio), 0),
+          ventasAnio: ventasAnioActual.length,
+          ingresosTotales: ventasAnioActual.reduce((acc: number, v: Venta) => acc + parseFloat(v.precio), 0),
           prenyecesActivas: prenyeces.length,
         });
         const mapa: Record<string, string> = {};
