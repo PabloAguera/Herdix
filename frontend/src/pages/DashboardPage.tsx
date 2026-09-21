@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Beef, Baby, TrendingUp, History, ArrowRight, Euro,
+  Beef, Baby, TrendingUp, History, ArrowRight,
   ShoppingCart, Heart, AlertTriangle, CalendarClock,
 } from "lucide-react";
 import { useGanaderiaStore } from "@/stores/ganaderiaStore";
@@ -9,7 +9,7 @@ import { animalesApi } from "@/api/animales";
 import { getEspecieConfig } from "@/lib/especieConfig";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Animal, Prenez, Venta } from "@/types";
+import type { Animal, Prenez } from "@/types";
 
 interface Stats {
   totalAnimales: number;
@@ -17,7 +17,6 @@ interface Stats {
   machos: number;
   nacimientosAnio: number;
   ventasAnio: number;
-  ingresosTotales: number;
   prenyecesActivas: number;
 }
 
@@ -50,21 +49,12 @@ export function DashboardPage() {
       animalesApi.listarPrenyeces(gid),
     ])
       .then(([animales, nacimientos, ventas, prenyeces]) => {
-        // El backend filtra por el campo "anio" de la venta, pero si algún registro
-        // tiene ese campo desincronizado de su fecha real, se cuela en el total.
-        // Filtramos aquí también por el año natural de la fecha exacta de venta
-        // para garantizar que solo se suma lo vendido en el año en curso.
-        const ventasAnioActual = ventas.filter((v: Venta) => {
-          const anioVenta = v.fecha_exacta ? new Date(v.fecha_exacta).getFullYear() : v.anio;
-          return anioVenta === anioActual;
-        });
         setStats({
           totalAnimales: animales.length,
           hembras: animales.filter((a: Animal) => a.sexo === "hembra").length,
           machos: animales.filter((a: Animal) => a.sexo === "macho").length,
           nacimientosAnio: nacimientos.length,
-          ventasAnio: ventasAnioActual.length,
-          ingresosTotales: ventasAnioActual.reduce((acc: number, v: Venta) => acc + parseFloat(v.precio), 0),
+          ventasAnio: ventas.length,
           prenyecesActivas: prenyeces.length,
         });
         const mapa: Record<string, string> = {};
@@ -123,18 +113,6 @@ export function DashboardPage() {
       icon: TrendingUp,
       iconBg: "bg-amber-100 text-amber-700",
       accent: "border-t-4 border-t-amber-500",
-    },
-    {
-      label: `Ingresos ${anioActual}`,
-      value: stats.ingresosTotales.toLocaleString("es-ES", {
-        style: "currency",
-        currency: "EUR",
-        maximumFractionDigits: 0,
-      }),
-      sub: "este año",
-      icon: Euro,
-      iconBg: "bg-purple-100 text-purple-700",
-      accent: "border-t-4 border-t-purple-500",
     },
   ] : [];
 
@@ -254,8 +232,8 @@ export function DashboardPage() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-5 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => (
+        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-xl border p-8 animate-pulse bg-muted/30">
               <div className="h-4 w-28 rounded bg-muted mb-6" />
               <div className="h-10 w-16 rounded bg-muted" />
@@ -265,7 +243,7 @@ export function DashboardPage() {
       ) : stats ? (
         <>
           {/* Tarjetas de estadísticas */}
-          <div className="grid grid-cols-2 gap-5 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
             {statCards.map(({ label, value, sub, icon: Icon, iconBg, accent }) => (
               <div
                 key={label}
