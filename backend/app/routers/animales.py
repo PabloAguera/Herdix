@@ -7,10 +7,12 @@ from app.core.deps import get_current_user, get_ganaderia_usuario
 from app.db.database import get_db
 from app.models.animal import Animal, RolAnimal
 from app.models.animal_historial import AnimalHistorial
+from app.models.compra import CompraAnio
 from app.models.ganaderia import GanaderiaUsuario
 from app.models.nacimiento import NacimientoAnio
+from app.models.reproduccion import Prenez
 from app.models.venta import VentaAnio
-from app.schemas.animal import AnimalCreate, AnimalRead, AnimalUpdate
+from app.schemas.animal import AnimalCreate, AnimalRead, AnimalUpdate, CrotalUpdate
 from app.schemas.animal_historial import AnimalSalidaRequest, AnimalHistorialRead
 from app.schemas.nacimiento import NacimientoCreate, NacimientoRead
 
@@ -22,6 +24,33 @@ def _get_animal_o_404(db: Session, crotal: str, ganaderia_id: int) -> Animal:
     if not animal:
         raise HTTPException(status_code=404, detail=f"Animal {crotal} no encontrado")
     return animal
+
+
+def _crotal_en_uso(db: Session, crotal: str) -> bool:
+    return (
+        db.query(Animal.crotal).filter_by(crotal=crotal).first() is not None
+        or db.query(AnimalHistorial.crotal).filter_by(crotal=crotal).first() is not None
+    )
+
+
+def _nuevo_crotal_provisional(db: Session) -> str:
+    """Genera un crotal provisional aleatorio que no exista ya."""
+    for _ in range(10):
+        candidato = Animal.generar_crotal_provisional()
+        if not _crotal_en_uso(db, candidato):
+            return candidato
+    raise HTTPException(status_code=500, detail="No se pudo generar un crotal provisional")
+
+
+# Columnas que guardan un crotal como "FK blanda" y deben seguir al animal si cambia
+_REFERENCIAS_CROTAL = [
+    (Animal, ("madre_crotal", "padre_crotal")),
+    (AnimalHistorial, ("madre_crotal", "padre_crotal")),
+    (NacimientoAnio, ("crotal_animal", "crotal_madre", "crotal_padre")),
+    (Prenez, ("crotal_madre", "crotal_padre")),
+    (CompraAnio, ("crotal_animal",)),
+    (VentaAnio, ("crotal_animal",)),
+]
 
 
 # ─── Animales activos ──────────────────────────────────────────────────────────
@@ -47,11 +76,17 @@ def crear_animal(
     if body.ganaderia_id != ganaderia_id:
         raise HTTPException(status_code=400, detail="ganaderia_id no coincide con la URL")
 
-    if db.query(Animal).filter_by(crotal=body.crotal).first():
-        raise HTTPException(status_code=409, detail=f"El crotal {body.crotal} ya existe")
+    datos = body.model_dump()
+    if body.crotal:
+        if db.query(Animal).filter_by(crotal=body.crotal).first():
+            raise HTTPException(status_code=409, detail=f"El crotal {body.crotal} ya existe")
+        datos["crotal_provisional"] = False
+    else:
+        datos["crotal"] = _nuevo_crotal_provisional(db)
+        datos["crotal_provisional"] = True
 
     raza_texto = Animal.calcular_raza_texto(body.composicion_racial)
-    animal = Animal(**body.model_dump(), raza_texto=raza_texto)
+    animal = Animal(**datos, raza_texto=raza_texto, fecha_alta=date.today())
     db.add(animal)
     db.commit()
     db.refresh(animal)
@@ -86,6 +121,56 @@ def actualizar_animal(
     db.commit()
     db.refresh(animal)
     return animal
+
+
+@router.patch("/{crotal}/crotal", response_model=AnimalRead)
+def cambiar_crotal(
+    ganaderia_id: int,
+    crotal: str,
+    body: CrotalUpdate,
+    gu: GanaderiaUsuario = Depends(get_ganaderia_usuario),
+    db: Session = Depends(get_db),
+):
+    """
+    Sustituye el crotal de un animal (normalmente el provisional por el oficial de la
+    Consejería). Solo se permite dentro del plazo desde su alta en la app; pasado ese
+    plazo el crotal queda fijo. Actualiza todas las referencias al crotal antiguo
+    (genealogía, nacimientos, preñeces, compras y ventas) en la misma transacción.
+    """
+    animal = _get_animal_o_404(db, crotal, ganaderia_id)
+
+    if not animal.crotal_editable:
+        if animal.crotal_editable_hasta is None:
+            detalle = "El crotal de este animal no se puede modificar"
+        else:
+            detalle = (
+                "Ha vencido el plazo para modificar el crotal "
+                f"(finalizó el {animal.crotal_editable_hasta.strftime('%d/%m/%Y')})"
+            )
+        raise HTTPException(status_code=403, detail=detalle)
+
+    nuevo = body.nuevo_crotal
+    if nuevo == animal.crotal:
+        return animal
+    if _crotal_en_uso(db, nuevo):
+        raise HTTPException(status_code=409, detail=f"El crotal {nuevo} ya existe")
+
+    # Trabajamos con UPDATE masivos: sacamos el objeto de la sesión para que
+    # el identity map no choque con el cambio de clave primaria.
+    db.expunge(animal)
+    db.query(Animal).filter(Animal.crotal == crotal).update(
+        {Animal.crotal: nuevo, Animal.crotal_provisional: False},
+        synchronize_session=False,
+    )
+    for modelo, columnas in _REFERENCIAS_CROTAL:
+        for nombre_col in columnas:
+            col = getattr(modelo, nombre_col)
+            db.query(modelo).filter(
+                modelo.ganaderia_id == ganaderia_id, col == crotal
+            ).update({col: nuevo}, synchronize_session=False)
+    db.commit()
+
+    return _get_animal_o_404(db, nuevo, ganaderia_id)
 
 
 @router.delete("/{crotal}", status_code=status.HTTP_204_NO_CONTENT)
@@ -197,8 +282,13 @@ def registrar_nacimiento(
     if body.ganaderia_id != ganaderia_id:
         raise HTTPException(status_code=400, detail="ganaderia_id no coincide con la URL")
 
+    # Sin crotal oficial todavía → identificador provisional (editable durante el plazo)
+    crotal_provisional = not body.crotal_animal
+    if crotal_provisional:
+        body.crotal_animal = _nuevo_crotal_provisional(db)
+
     # Auto-crear el ternero si no existe ya
-    if not db.query(Animal).filter_by(crotal=body.crotal_animal).first():
+    if crotal_provisional or not db.query(Animal).filter_by(crotal=body.crotal_animal).first():
         madre = db.query(Animal).filter_by(
             crotal=body.crotal_madre, ganaderia_id=ganaderia_id
         ).first()
@@ -244,6 +334,8 @@ def registrar_nacimiento(
             madre_crotal=body.crotal_madre,
             padre_crotal=body.crotal_padre,
             padre_desc=body.padre_desc,
+            fecha_alta=date.today(),
+            crotal_provisional=crotal_provisional,
         )
         db.add(ternero)
 

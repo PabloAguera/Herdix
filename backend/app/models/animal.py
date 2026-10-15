@@ -1,10 +1,16 @@
+import secrets
+from datetime import date, timedelta
 from enum import Enum as PyEnum
 
-from sqlalchemy import String, Date, ForeignKey, Enum, Text
+from sqlalchemy import String, Date, ForeignKey, Enum, Text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.config import settings
 from app.db.database import Base
+
+PREFIJO_CROTAL_PROVISIONAL = "PROV-"
+_ALFABETO_PROVISIONAL = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O ni 1/I para evitar confusiones
 
 
 class Sexo(str, PyEnum):
@@ -60,11 +66,40 @@ class Animal(Base):
         ForeignKey("ganaderias.id", ondelete="RESTRICT"), nullable=False, index=True
     )
 
+    # Alta en la app y crotal provisional.
+    # Al nacer, el ganadero aún no tiene el crotal oficial (lo asigna la Consejería),
+    # así que se le da un identificador provisional y hay un plazo
+    # (settings.CROTAL_PLAZO_EDICION_DIAS) desde fecha_alta para cambiarlo.
+    # Animales anteriores a esta funcionalidad tienen fecha_alta NULL → crotal no editable.
+    fecha_alta: Mapped[date | None] = mapped_column(Date, nullable=True, default=date.today)
+    crotal_provisional: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     # Relaciones
     ganaderia: Mapped["Ganaderia"] = relationship("Ganaderia", back_populates="animales")
 
     def __repr__(self) -> str:
         return f"<Animal crotal={self.crotal!r} nombre={self.nombre!r}>"
+
+    @property
+    def crotal_editable_hasta(self) -> date | None:
+        """Último día en que se puede modificar el crotal (None si nunca fue editable)."""
+        if self.fecha_alta is None:
+            return None
+        return self.fecha_alta + timedelta(days=settings.CROTAL_PLAZO_EDICION_DIAS)
+
+    @property
+    def crotal_editable(self) -> bool:
+        hasta = self.crotal_editable_hasta
+        return hasta is not None and date.today() <= hasta
+
+    @staticmethod
+    def generar_crotal_provisional() -> str:
+        """Identificador aleatorio tipo 'PROV-7K3MQ9XA' (13 caracteres)."""
+        return PREFIJO_CROTAL_PROVISIONAL + "".join(
+            secrets.choice(_ALFABETO_PROVISIONAL) for _ in range(8)
+        )
 
     @staticmethod
     def calcular_raza_texto(composicion: dict) -> str:

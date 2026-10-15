@@ -62,10 +62,16 @@ export interface Animal {
   padre_desc: string | null;
   madre_crotal: string | null;
   ganaderia_id: number;
+  // Crotal provisional / plazo de edición (solo animales en censo)
+  fecha_alta?: string | null;
+  crotal_provisional?: boolean;
+  crotal_editable?: boolean;
+  crotal_editable_hasta?: string | null;
 }
 
 export interface AnimalCreate {
-  crotal: string;
+  /** Si se omite, el backend asigna un crotal provisional */
+  crotal?: string;
   nombre?: string;
   fecha_nacimiento: string;
   sexo: Sexo;
@@ -126,7 +132,8 @@ export interface Nacimiento {
 export interface NacimientoCreate {
   anio: number;
   fecha_exacta?: string;
-  crotal_animal: string;
+  /** Si se omite, el backend asigna un crotal provisional */
+  crotal_animal?: string;
   sexo: Sexo;
   crotal_madre: string;
   crotal_padre?: string;

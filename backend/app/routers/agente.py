@@ -191,6 +191,7 @@ def _listar_animales(db: Session, ganaderia_id: int, params: dict) -> dict:
                 "rol": a.rol,
                 "fecha_nacimiento": _s(a.fecha_nacimiento),
                 "raza": _raza_texto(a.composicion_racial),
+                "crotal_provisional": a.crotal_provisional,
             }
             for a in animales
         ],

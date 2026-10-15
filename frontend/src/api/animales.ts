@@ -31,6 +31,12 @@ export const animalesApi = {
   actualizar: (ganaderiaId: number, crotal: string, data: AnimalUpdate) =>
     apiClient.patch<Animal>(`${base(ganaderiaId)}/${crotal}`, data).then((r) => r.data),
 
+  /** Sustituye el crotal (p. ej. provisional → oficial) dentro del plazo permitido */
+  cambiarCrotal: (ganaderiaId: number, crotal: string, nuevoCrotal: string) =>
+    apiClient
+      .patch<Animal>(`${base(ganaderiaId)}/${crotal}/crotal`, { nuevo_crotal: nuevoCrotal })
+      .then((r) => r.data),
+
   eliminar: (ganaderiaId: number, crotal: string) =>
     apiClient.delete(`${base(ganaderiaId)}/${crotal}`),
 

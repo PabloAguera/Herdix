@@ -161,6 +161,7 @@ def test_registrar_nacimiento(client, usuario_y_token, ganaderia):
         "anio": 2024,
         "fecha_exacta": "2024-03-10",
         "crotal_animal": ternero_crotal,
+        "sexo": "macho",
         "crotal_madre": madre_crotal,
         "padre_desc": "Toro Limusín de Pedro",
         "ganaderia_id": gid,
@@ -168,3 +169,119 @@ def test_registrar_nacimiento(client, usuario_y_token, ganaderia):
     resp = client.post(f"/ganaderias/{gid}/animales/nacimientos/", json=nacimiento, headers=headers)
     assert resp.status_code == 201
     assert resp.json()["anio"] == 2024
+
+
+# ─── Crotal provisional ────────────────────────────────────────────────────
+
+def _crear_madre(client, headers, gid, crotal="ES120000070"):
+    client.post(
+        f"/ganaderias/{gid}/animales/",
+        json=animal_payload(crotal=crotal, ganaderia_id=gid, sexo="hembra"),
+        headers=headers,
+    )
+    return crotal
+
+
+def _nacimiento_provisional(client, headers, gid, madre):
+    resp = client.post(
+        f"/ganaderias/{gid}/animales/nacimientos/",
+        json={
+            "anio": date.today().year,
+            "fecha_exacta": date.today().isoformat(),
+            "sexo": "macho",
+            "crotal_madre": madre,
+            "ganaderia_id": gid,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["crotal_animal"]
+
+
+def test_nacimiento_sin_crotal_asigna_provisional(client, usuario_y_token, ganaderia):
+    _, _, headers = usuario_y_token
+    gid = ganaderia["id"]
+    madre = _crear_madre(client, headers, gid, "ES120000071")
+
+    crotal = _nacimiento_provisional(client, headers, gid, madre)
+    assert crotal.startswith("PROV-")
+
+    animal = client.get(f"/ganaderias/{gid}/animales/{crotal}", headers=headers).json()
+    assert animal["crotal_provisional"] is True
+    assert animal["crotal_editable"] is True
+    assert animal["fecha_alta"] == date.today().isoformat()
+
+
+def test_cambiar_crotal_provisional_actualiza_referencias(client, usuario_y_token, ganaderia):
+    _, _, headers = usuario_y_token
+    gid = ganaderia["id"]
+    madre = _crear_madre(client, headers, gid, "ES120000072")
+    provisional = _nacimiento_provisional(client, headers, gid, madre)
+
+    resp = client.patch(
+        f"/ganaderias/{gid}/animales/{provisional}/crotal",
+        json={"nuevo_crotal": "es 120000073"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["crotal"] == "ES120000073"
+    assert resp.json()["crotal_provisional"] is False
+
+    # El provisional ya no existe y el nacimiento apunta al crotal oficial
+    assert client.get(f"/ganaderias/{gid}/animales/{provisional}", headers=headers).status_code == 404
+    nacs = client.get(f"/ganaderias/{gid}/animales/nacimientos/", headers=headers).json()
+    crotales_nac = [n["crotal_animal"] for n in nacs]
+    assert "ES120000073" in crotales_nac
+    assert provisional not in crotales_nac
+
+
+def test_cambiar_crotal_duplicado(client, usuario_y_token, ganaderia):
+    _, _, headers = usuario_y_token
+    gid = ganaderia["id"]
+    madre = _crear_madre(client, headers, gid, "ES120000074")
+    provisional = _nacimiento_provisional(client, headers, gid, madre)
+
+    resp = client.patch(
+        f"/ganaderias/{gid}/animales/{provisional}/crotal",
+        json={"nuevo_crotal": madre},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+
+def test_cambiar_crotal_fuera_de_plazo(client, usuario_y_token, ganaderia, db):
+    from datetime import timedelta
+    from app.core.config import settings
+
+    _, _, headers = usuario_y_token
+    gid = ganaderia["id"]
+    madre = _crear_madre(client, headers, gid, "ES120000075")
+    provisional = _nacimiento_provisional(client, headers, gid, madre)
+
+    animal = db.query(Animal).filter_by(crotal=provisional).one()
+    animal.fecha_alta = date.today() - timedelta(days=settings.CROTAL_PLAZO_EDICION_DIAS + 1)
+    db.commit()
+
+    resp = client.patch(
+        f"/ganaderias/{gid}/animales/{provisional}/crotal",
+        json={"nuevo_crotal": "ES120000076"},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+
+def test_animal_antiguo_sin_fecha_alta_no_editable(client, usuario_y_token, ganaderia, db):
+    _, _, headers = usuario_y_token
+    gid = ganaderia["id"]
+    crotal = _crear_madre(client, headers, gid, "ES120000077")
+
+    animal = db.query(Animal).filter_by(crotal=crotal).one()
+    animal.fecha_alta = None  # simula un animal anterior a la migración
+    db.commit()
+
+    resp = client.patch(
+        f"/ganaderias/{gid}/animales/{crotal}/crotal",
+        json={"nuevo_crotal": "ES120000078"},
+        headers=headers,
+    )
+    assert resp.status_code == 403

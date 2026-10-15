@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     # Groq API
     GROQ_API_KEY: str = ""
 
+    # Días que se puede corregir el crotal de un animal desde su alta en la app
+    # (p. ej. para sustituir el identificador provisional por el de la Consejería)
+    CROTAL_PLAZO_EDICION_DIAS: int = 60
+
     # Entorno
     ENVIRONMENT: str = "development"
 

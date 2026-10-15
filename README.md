@@ -87,7 +87,6 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 - Total de animales en censo activo
 - Nacimientos y ventas del año en curso
 - Preñeces activas
-- Ingresos por ventas del año en curso
 - Banner de alertas para partos próximos (rojo ≤ 3 días, ámbar 4-10 días)
 - Accesos rápidos a todas las secciones
 
@@ -292,6 +291,7 @@ Los cambios relevantes se registran aquí al modificar funcionalidades existente
 
 | Fecha | Cambio |
 |---|---|
+| 2026-09-21 | Quitada la tarjeta "Ingresos" del dashboard de inicio: mostraba la suma de ventas de todos los años en vez de solo el año en curso, pese a que tanto la query del backend como la petición del frontend ya filtraban por `anio`. Se probaron varios ajustes en el filtrado sin que el problema se reprodujera de forma consistente; sospecha sin confirmar: registros huérfanos en `ventas_anio` que quedan al borrar una venta desde el historial (`eliminar_historial` no limpia su `VentaAnio` asociada). La tarjeta "Ventas {año}" (contador) se mantiene, ya que esa sí mostraba el número correcto. Pendiente: revisar los datos de `ventas_anio` en producción y, si procede, limpiar los huérfanos al borrar del historial antes de reintroducir el importe. |
 | 2026-09-18 | Añadido dictado por voz al asistente IA: botón de micrófono en el chat que transcribe la voz a texto usando la Web Speech API nativa del navegador (`use-speech-recognition.ts`), sin necesidad de backend ni servicios externos. Disponible en Chrome, Edge y navegadores basados en Chromium (incluido Chrome para Android); se avisa cuando el navegador no lo soporta o se deniega el permiso del micrófono. |
 | 2026-08-23 | Preparado el despliegue en producción (Vercel + Render + Neon): `entrypoint.sh` para aplicar migraciones y respetar el puerto dinámico de Render; `CORS_ORIGINS` configurable por variable de entorno en `main.py`; pool de conexiones a BD dimensionado para ~20 usuarios concurrentes (`pool_size=10, max_overflow=10`); `VITE_API_URL` para apuntar el frontend al backend desplegado; `vercel.json` con fallback SPA; `render.yaml` como Blueprint del backend. Añadido soporte **PWA** instalable (manifest, iconos, service worker vía `vite-plugin-pwa`) para poder instalar la app en el móvil sin pasar por el navegador. |
 | 2026-08-23 | Cambiado el modelo por defecto del agente a `openai/gpt-oss-120b` (Groq retiró `llama-3.3-70b-versatile` el 17/06/2026, provocaba error 404 al chatear con el asistente). Añadida `AGENTE_MODEL` a `docker-compose.yml`. Corregido el `.env` de la raíz, que le faltaban `POSTGRES_USER/PASSWORD/DB`, `DATABASE_URL` y `SECRET_KEY` (causaba fallo de login al recrear los contenedores). Corregido el esquema de las herramientas del agente (`agente.py`) para aceptar `null` en parámetros opcionales — el nuevo modelo los envía explícitamente y Groq rechazaba la llamada con error 400 (`tool_use_failed`). Corregido también un fallo en `_hijos_de_animal` que rompía con `AttributeError` al recibir `null` en `crotal`/`nombre`. |

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, Search, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, AlertTriangle } from "lucide-react";
+import { PREFIJO_CROTAL_PROVISIONAL, formatFecha } from "@/lib/crotal";
 import { useGanaderiaStore } from "@/stores/ganaderiaStore";
 import { animalesApi } from "@/api/animales";
 import { useToast } from "@/hooks/use-toast";
@@ -413,6 +414,11 @@ export function AnimalesPage() {
     return coincideTexto && coincideSexo && coincideRol;
   });
 
+  // Animales con crotal provisional que aún pueden recibir el oficial
+  const pendientesCrotal = animales
+    .filter((a) => a.crotal_provisional && a.crotal_editable && a.crotal_editable_hasta)
+    .sort((a, b) => a.crotal_editable_hasta!.localeCompare(b.crotal_editable_hasta!));
+
   const edadMeses = (fechaNac: string) => {
     const hoy = new Date();
     const nac = new Date(fechaNac);
@@ -442,6 +448,24 @@ export function AnimalesPage() {
           Añadir animal
         </Button>
       </div>
+
+      {/* Aviso de crotales provisionales */}
+      {pendientesCrotal.length > 0 && (
+        <button type="button"
+          onClick={() => setBusqueda(PREFIJO_CROTAL_PROVISIONAL)}
+          className="flex w-full items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm hover:bg-amber-100 transition-colors">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <span>
+            <span className="font-semibold">
+              {pendientesCrotal.length === 1
+                ? "1 animal pendiente del crotal de la Consejería"
+                : `${pendientesCrotal.length} animales pendientes del crotal de la Consejería`}
+            </span>
+            {" · "}el primer plazo vence el {formatFecha(pendientesCrotal[0].crotal_editable_hasta!)}.{" "}
+            <span className="underline">Ver</span>
+          </span>
+        </button>
+      )}
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2">
@@ -512,13 +536,18 @@ export function AnimalesPage() {
                   className="hover:bg-muted/20 transition-colors cursor-pointer"
                   onClick={() => navigate(`/animales/${animal.crotal}`)}
                 >
-                  <td className="px-5 py-4">
+                  <td className="px-5 py-4 whitespace-nowrap">
                     <Link
                       to={`/animales/${animal.crotal}`}
                       className="font-mono text-base font-semibold text-foreground hover:underline"
                     >
                       {animal.crotal}
                     </Link>
+                    {animal.crotal_provisional && (
+                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                        Provisional
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-4 text-base text-foreground">
                     {animal.nombre ?? <span className="italic text-muted-foreground">Sin nombre</span>}

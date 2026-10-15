@@ -1,6 +1,6 @@
 from datetime import date
-from pydantic import BaseModel, model_validator
-from app.models.animal import Sexo, RolAnimal
+from pydantic import BaseModel, field_validator, model_validator
+from app.models.animal import Sexo, RolAnimal, PREFIJO_CROTAL_PROVISIONAL
 
 
 class AnimalBase(BaseModel):
@@ -23,7 +23,8 @@ class AnimalBase(BaseModel):
 
 
 class AnimalCreate(AnimalBase):
-    pass
+    # Si no se indica, se asigna un crotal provisional editable durante el plazo
+    crotal: str | None = None
 
 
 class AnimalUpdate(BaseModel):
@@ -35,7 +36,28 @@ class AnimalUpdate(BaseModel):
     madre_crotal: str | None = None
 
 
+class CrotalUpdate(BaseModel):
+    """Body para sustituir el crotal (provisional o erróneo) dentro del plazo."""
+    nuevo_crotal: str
+
+    @field_validator("nuevo_crotal")
+    @classmethod
+    def validar_crotal(cls, v: str) -> str:
+        v = v.strip().upper().replace(" ", "")
+        if not v:
+            raise ValueError("El crotal no puede estar vacío")
+        if len(v) > 20:
+            raise ValueError("El crotal no puede tener más de 20 caracteres")
+        if v.startswith(PREFIJO_CROTAL_PROVISIONAL):
+            raise ValueError("Introduce el crotal oficial, no uno provisional")
+        return v
+
+
 class AnimalRead(AnimalBase):
     raza_texto: str | None = None
+    fecha_alta: date | None = None
+    crotal_provisional: bool = False
+    crotal_editable: bool = False
+    crotal_editable_hasta: date | None = None
 
     model_config = {"from_attributes": True}

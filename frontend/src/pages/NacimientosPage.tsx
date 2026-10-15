@@ -6,6 +6,7 @@ import { animalesApi } from "@/api/animales";
 import { useToast } from "@/hooks/use-toast";
 import { normalizarRaza } from "@/lib/utils";
 import { getEspecieConfig } from "@/lib/especieConfig";
+import { PLAZO_EDICION_CROTAL_DIAS } from "@/lib/crotal";
 import type { Animal, Nacimiento, NacimientoCreate, Sexo, TipoGanaderia } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ const ANIOS = Array.from({ length: 6 }, (_, i) => ANIO_ACTUAL - i);
 type TipoPadre = "ganaderia" | "externo" | "ninguno";
 
 interface FormNacimiento {
+  crotal_pendiente: boolean;
   crotal_animal: string;
   sexo: Sexo;
   fecha_exacta: string;
@@ -34,6 +36,7 @@ interface FormNacimiento {
 }
 
 const FORM_INICIAL: FormNacimiento = {
+  crotal_pendiente: true,
   crotal_animal: "",
   sexo: "hembra",
   fecha_exacta: new Date().toISOString().split("T")[0],
@@ -86,11 +89,16 @@ function ModalNacimiento({
     e.preventDefault();
     if (!form.crotal_madre) { toast({ variant: "destructive", title: "Selecciona la madre" }); return; }
 
+    const crotalCria = form.crotal_pendiente ? "" : form.crotal_animal;
+    if (!form.crotal_pendiente && crotalCria.replace(/^[A-Z]+/i, "").length === 0) {
+      toast({ variant: "destructive", title: `Introduce el crotal del ${cfg.cria_singular} o márcalo como pendiente de la Consejería.` }); return;
+    }
+
     // Crotal de la cría no puede coincidir con madre o padre
-    if (form.crotal_animal && form.crotal_animal === form.crotal_madre) {
+    if (crotalCria && crotalCria === form.crotal_madre) {
       toast({ variant: "destructive", title: `El crotal del ${cfg.cria_singular} no puede ser el mismo que el de la madre.` }); return;
     }
-    if (form.crotal_animal && form.tipo_padre === "ganaderia" && form.crotal_animal === form.crotal_padre) {
+    if (crotalCria && form.tipo_padre === "ganaderia" && crotalCria === form.crotal_padre) {
       toast({ variant: "destructive", title: `El crotal del ${cfg.cria_singular} no puede ser el mismo que el del padre.` }); return;
     }
 
@@ -117,7 +125,7 @@ function ModalNacimiento({
       const payload: NacimientoCreate = {
         anio: new Date(form.fecha_exacta).getFullYear(),
         fecha_exacta: form.fecha_exacta,
-        crotal_animal: form.crotal_animal,
+        crotal_animal: crotalCria || undefined,
         sexo: form.sexo,
         crotal_madre: form.crotal_madre,
         ganaderia_id: ganaderiaId,
@@ -128,7 +136,14 @@ function ModalNacimiento({
       };
       const nac = await animalesApi.registrarNacimiento(ganaderiaId, payload);
       onCreado(nac);
-      toast({ title: `Nacimiento registrado — ${cfg.cria_singular} añadido al censo` });
+      if (form.crotal_pendiente) {
+        toast({
+          title: `Nacimiento registrado con crotal provisional ${nac.crotal_animal}`,
+          description: `Tienes ${PLAZO_EDICION_CROTAL_DIAS} días para poner el crotal oficial desde la ficha del ${cfg.cria_singular}.`,
+        });
+      } else {
+        toast({ title: `Nacimiento registrado — ${cfg.cria_singular} añadido al censo` });
+      }
       setForm(FORM_INICIAL);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err?.response?.data?.detail ?? "Inténtalo de nuevo" });
@@ -146,9 +161,15 @@ function ModalNacimiento({
           {/* Crotal + Sexo */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="crotal_animal">Crotal del {cfg.cria_singular} *</Label>
-              <CrotalInput id="crotal_animal" value={form.crotal_animal}
-                onChange={(v) => set("crotal_animal", v)} tipo={tipoGanaderia} required autoFocus />
+              <Label htmlFor="crotal_animal">Crotal del {cfg.cria_singular} {!form.crotal_pendiente && "*"}</Label>
+              {form.crotal_pendiente ? (
+                <div className="flex h-10 items-center rounded-md border border-dashed bg-muted/40 px-3 text-sm text-muted-foreground">
+                  Provisional (automático)
+                </div>
+              ) : (
+                <CrotalInput id="crotal_animal" value={form.crotal_animal}
+                  onChange={(v) => set("crotal_animal", v)} tipo={tipoGanaderia} required autoFocus />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Sexo *</Label>
@@ -161,6 +182,19 @@ function ModalNacimiento({
               </Select>
             </div>
           </div>
+
+          <label className="flex items-start gap-2.5 rounded-md border bg-muted/20 px-3 py-2.5 text-sm cursor-pointer">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary"
+              checked={form.crotal_pendiente}
+              onChange={(e) => set("crotal_pendiente", e.target.checked)} />
+            <span>
+              <span className="font-medium">Pendiente de crotal de la Consejería</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                Se asignará un identificador provisional. Tendrás {PLAZO_EDICION_CROTAL_DIAS} días para
+                poner el crotal oficial desde la ficha del animal; después ya no se podrá cambiar.
+              </span>
+            </span>
+          </label>
 
           {/* Fecha */}
           <div className="space-y-1.5">

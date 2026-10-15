@@ -6,7 +6,8 @@ from app.models.animal import Sexo
 class NacimientoCreate(BaseModel):
     anio: int
     fecha_exacta: date | None = None
-    crotal_animal: str
+    # Si no se indica, el ternero recibe un crotal provisional (pendiente de la Consejería)
+    crotal_animal: str | None = None
     sexo: Sexo
     crotal_madre: str
     crotal_padre: str | None = None

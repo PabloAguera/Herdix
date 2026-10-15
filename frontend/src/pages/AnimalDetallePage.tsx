@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft, Pencil, LogOut, Check, X, Loader2,
-  Dna, ShoppingCart, TrendingUp, Info,
+  Dna, ShoppingCart, TrendingUp, Info, AlertTriangle, Tag,
 } from "lucide-react";
 import { useGanaderiaStore } from "@/stores/ganaderiaStore";
 import { animalesApi } from "@/api/animales";
@@ -13,6 +13,76 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { CrotalInput } from "@/components/ui/CrotalInput";
+import { formatFecha, textoPlazo } from "@/lib/crotal";
+import type { TipoGanaderia } from "@/types";
+
+// ─── Modal para poner / corregir el crotal ────────────────────────────────
+
+function ModalCrotal({
+  open, animal, tipo, ganaderiaId, onClose, onCambiado,
+}: {
+  open: boolean; animal: Animal; tipo: TipoGanaderia; ganaderiaId: number;
+  onClose: () => void; onCambiado: (a: Animal) => void;
+}) {
+  const [valor, setValor] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => { if (open) setValor(""); }, [open]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const actualizado = await animalesApi.cambiarCrotal(ganaderiaId, animal.crotal, valor);
+      toast({ title: "Crotal actualizado", description: `${animal.crotal} → ${actualizado.crotal}` });
+      onCambiado(actualizado);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      toast({
+        variant: "destructive",
+        title: "No se pudo cambiar el crotal",
+        description: Array.isArray(detail) ? detail[0]?.msg : detail,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{animal.crotal_provisional ? "Poner crotal oficial" : "Corregir crotal"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Crotal actual: <span className="font-mono font-semibold text-foreground">{animal.crotal}</span>
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="nuevo_crotal">
+              {animal.crotal_provisional ? "Crotal asignado por la Consejería *" : "Nuevo crotal *"}
+            </Label>
+            <CrotalInput id="nuevo_crotal" value={valor} onChange={setValor} tipo={tipo} required autoFocus />
+          </div>
+          {animal.crotal_editable_hasta && (
+            <p className="text-xs text-muted-foreground">
+              Comprueba bien el número: a partir del {formatFecha(animal.crotal_editable_hasta)} el crotal
+              ya no se podrá modificar. Nacimientos, genealogía, preñeces, compras y ventas se actualizan automáticamente.
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar crotal
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ─── Modal de salida ───────────────────────────────────────────────────────
 
@@ -208,6 +278,7 @@ export function AnimalDetallePage() {
   const [nombreMap, setNombreMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [modalSalida, setModalSalida] = useState(false);
+  const [modalCrotal, setModalCrotal] = useState(false);
 
   useEffect(() => {
     if (!ganaderiaActual || !crotal) return;
@@ -301,6 +372,11 @@ export function AnimalDetallePage() {
                   Historial
                 </span>
               )}
+              {enCenso && animal!.crotal_provisional && (
+                <span className="rounded-full px-3 py-0.5 text-sm font-semibold bg-amber-100 text-amber-800">
+                  Crotal provisional
+                </span>
+              )}
             </div>
             {datos.nombre && (
               <p className="text-xl text-muted-foreground mt-0.5">{datos.nombre}</p>
@@ -314,6 +390,44 @@ export function AnimalDetallePage() {
           </Button>
         )}
       </div>
+
+      {/* ── Aviso de crotal provisional / plazo de edición ── */}
+      {enCenso && animal!.crotal_editable && animal!.crotal_editable_hasta && (
+        <div className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border px-5 py-4 ${
+          animal!.crotal_provisional ? "border-amber-300 bg-amber-50" : "bg-muted/30"
+        }`}>
+          <div className="flex items-start gap-3 flex-1">
+            {animal!.crotal_provisional
+              ? <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              : <Tag className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />}
+            <p className="text-sm">
+              {animal!.crotal_provisional ? (
+                <>
+                  <span className="font-semibold">Pendiente del crotal de la Consejería.</span>{" "}
+                  Puedes ponerlo hasta el {formatFecha(animal!.crotal_editable_hasta)} ({textoPlazo(animal!.crotal_editable_hasta)}).
+                  Después el crotal ya no se podrá cambiar.
+                </>
+              ) : (
+                <>Puedes corregir el crotal hasta el {formatFecha(animal!.crotal_editable_hasta)} ({textoPlazo(animal!.crotal_editable_hasta)}).</>
+              )}
+            </p>
+          </div>
+          <Button size="sm" variant={animal!.crotal_provisional ? "default" : "outline"} className="shrink-0"
+            onClick={() => setModalCrotal(true)}>
+            <Pencil className="h-3.5 w-3.5 mr-1.5" />
+            {animal!.crotal_provisional ? "Poner crotal oficial" : "Corregir crotal"}
+          </Button>
+        </div>
+      )}
+      {enCenso && animal!.crotal_provisional && !animal!.crotal_editable && animal!.crotal_editable_hasta && (
+        <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-5 py-4">
+          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <p className="text-sm">
+            El plazo para poner el crotal oficial terminó el {formatFecha(animal!.crotal_editable_hasta)}.
+            El identificador provisional ya no se puede modificar.
+          </p>
+        </div>
+      )}
 
       {/* ── Datos del animal ── */}
       <Seccion titulo="Datos del animal" icono={<Info className="h-5 w-5" />}>
@@ -412,6 +526,21 @@ export function AnimalDetallePage() {
           <InfoBloque label="Comprador" value={historialAnimal.comprador} />
           <InfoBloque label="Notas" value={historialAnimal.notas} />
         </Seccion>
+      )}
+
+      {enCenso && (
+        <ModalCrotal
+          open={modalCrotal}
+          animal={animal!}
+          tipo={ganaderiaActual.tipo ?? "bovino"}
+          ganaderiaId={ganaderiaActual.id}
+          onClose={() => setModalCrotal(false)}
+          onCambiado={(a) => {
+            setModalCrotal(false);
+            setAnimal(a);
+            navigate(`/animales/${a.crotal}`, { replace: true });
+          }}
+        />
       )}
 
       {enCenso && (
