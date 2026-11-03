@@ -23,7 +23,7 @@ class AnimalBase(BaseModel):
 
 
 class AnimalCreate(AnimalBase):
-    # Si no se indica, se asigna un crotal provisional editable durante el plazo
+    # Si no se indica, se asigna un crotal provisional que se puede sustituir por el oficial
     crotal: str | None = None
 
 
@@ -37,7 +37,7 @@ class AnimalUpdate(BaseModel):
 
 
 class CrotalUpdate(BaseModel):
-    """Body para sustituir el crotal (provisional o erróneo) dentro del plazo."""
+    """Body para sustituir el crotal (provisional o erróneo). Un cambio por animal; el admin siempre."""
     nuevo_crotal: str
 
     @field_validator("nuevo_crotal")
@@ -57,7 +57,7 @@ class AnimalRead(AnimalBase):
     raza_texto: str | None = None
     fecha_alta: date | None = None
     crotal_provisional: bool = False
-    crotal_editable: bool = False
-    crotal_editable_hasta: date | None = None
+    crotal_cambiado: bool = False
+    crotal_editable: bool = True
 
     model_config = {"from_attributes": True}

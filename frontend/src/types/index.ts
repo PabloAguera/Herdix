@@ -23,6 +23,8 @@ export interface Ganaderia {
   tipo: TipoGanaderia;
   created_by: number;
   created_at: string;
+  /** Rol del usuario actual en esta ganadería */
+  mi_rol?: RolUsuario | null;
 }
 
 export type RolUsuario = "admin" | "colaborador";
@@ -63,11 +65,12 @@ export interface Animal {
   padre_desc: string | null;
   madre_crotal: string | null;
   ganaderia_id: number;
-  // Crotal provisional / plazo de edición (solo animales en censo)
+  // Crotal provisional y cambio de crotal (solo animales en censo).
+  // Cada animal admite un cambio de crotal; después solo el admin puede corregirlo.
   fecha_alta?: string | null;
   crotal_provisional?: boolean;
+  crotal_cambiado?: boolean;
   crotal_editable?: boolean;
-  crotal_editable_hasta?: string | null;
 }
 
 export interface AnimalCreate {

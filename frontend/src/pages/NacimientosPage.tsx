@@ -6,7 +6,6 @@ import { animalesApi } from "@/api/animales";
 import { useToast } from "@/hooks/use-toast";
 import { normalizarRaza } from "@/lib/utils";
 import { getEspecieConfig } from "@/lib/especieConfig";
-import { PLAZO_EDICION_CROTAL_DIAS } from "@/lib/crotal";
 import type { Animal, Nacimiento, NacimientoCreate, Sexo, TipoGanaderia } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,7 +138,7 @@ function ModalNacimiento({
       if (form.crotal_pendiente) {
         toast({
           title: `Nacimiento registrado con crotal provisional ${nac.crotal_animal}`,
-          description: `Tienes ${PLAZO_EDICION_CROTAL_DIAS} días para poner el crotal oficial desde la ficha del ${cfg.cria_singular}.`,
+          description: `Cuando tengas el crotal oficial, ponlo desde la ficha del ${cfg.cria_singular}.`,
         });
       } else {
         toast({ title: `Nacimiento registrado — ${cfg.cria_singular} añadido al censo` });
@@ -190,8 +189,8 @@ function ModalNacimiento({
             <span>
               <span className="font-medium">Pendiente de crotal de la Consejería</span>
               <span className="block text-xs text-muted-foreground mt-0.5">
-                Se asignará un identificador provisional. Tendrás {PLAZO_EDICION_CROTAL_DIAS} días para
-                poner el crotal oficial desde la ficha del animal; después ya no se podrá cambiar.
+                Se asignará un identificador provisional. Cuando tengas el crotal oficial, lo pones
+                desde la ficha del animal (sin plazo).
               </span>
             </span>
           </label>

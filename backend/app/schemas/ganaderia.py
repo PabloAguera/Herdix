@@ -18,6 +18,8 @@ class GanaderiaRead(BaseModel):
     tipo: TipoGanaderia
     created_by: int
     created_at: datetime
+    # Rol del usuario que hace la petición en esta ganadería
+    mi_rol: RolUsuario | None = None
 
     model_config = {"from_attributes": True}
 

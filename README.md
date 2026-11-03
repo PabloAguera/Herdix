@@ -61,6 +61,8 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 ### Censo de animales
 - Alta, edición y baja de animales en el censo activo
 - Campos: crotal, nombre, sexo, rol (madre / padre / recría), fecha de nacimiento, composición racial
+- **Crotal provisional**: si al nacer aún no se tiene el crotal de la Consejería, se asigna un identificador `PROV-XXXXXXXX` y el animal aparece como pendiente hasta que se ponga el oficial
+- **Cambio de crotal**: cada animal admite **un cambio de crotal, sin plazo** (normalmente provisional → oficial). Después queda fijo para los colaboradores; el **admin** de la ganadería puede corregirlo siempre (p. ej. una errata), confirmándolo antes de guardar. Al cambiarlo se actualizan genealogía, nacimientos, preñeces, compras y ventas
 - **Composición racial automática**: al registrar un nacimiento, la genética de la cría se calcula automáticamente promediando la composición de ambos progenitores. Si solo se conoce la madre, hereda su composición. Razas con menos del 10% se agrupan como "otro"
 - Genealogía: cada animal guarda referencia a madre y padre
 
@@ -297,6 +299,8 @@ La app queda con su propio icono, se abre a pantalla completa y no requiere abri
 | Registrar nacimientos, ventas, compras | ✓ | ✓ |
 | Gestionar preñeces | ✓ | ✓ |
 | Usar el asistente IA | ✓ | ✓ |
+| Cambiar el crotal de un animal (una vez) | ✓ | ✓ |
+| Corregir un crotal ya cambiado | ✓ | — |
 | Renombrar la ganadería | ✓ | — |
 | Crear y revocar invitaciones | ✓ | — |
 | Ver y expulsar miembros | ✓ | — |
@@ -321,6 +325,7 @@ Los cambios relevantes se registran aquí al modificar funcionalidades existente
 
 | Fecha | Cambio |
 |---|---|
+| 2026-11-03 | **Crotal: un cambio por animal, sin plazo.** Sustituye el plazo de 60 días desde el alta (`CROTAL_PLAZO_EDICION_DIAS`, eliminada), que no encajaba con todas las especies (en equino la identificación oficial puede tardar meses). Nueva columna `crotal_cambiado` (migración `b8c9d0e1f2a3`); todos los animales existentes empiezan con su cambio disponible, incluidos los anteriores a la función de crotal provisional. El admin puede corregir siempre, con casilla de confirmación. `GanaderiaRead` incluye ahora `mi_rol` (rol del usuario actual) para que el frontend sepa si es admin. |
 | 2026-11-03 | **Cuentas y acceso.** Eliminada la lista blanca `ALLOWED_EMAILS`: registro abierto con verificación de email obligatoria (los usuarios existentes quedan verificados en la migración `a7b8c9d0e1f2`). Nuevas pantallas: recuperar contraseña, restablecer contraseña, confirmar correo y cambiar contraseña en Ajustes; botón para ver la contraseña al escribirla. `token_version` en el JWT para cerrar sesiones al cambiar la contraseña. Límite de intentos en memoria (`core/rate_limit.py`) y `--proxy-headers` en `entrypoint.sh` para ver la IP real tras el proxy de Render. Envío de correos con la API de Brevo (`services/email.py`; en local se escriben en el log). Corregido: los enlaces de invitación `/invitacion/<token>` no funcionaban (el router los redirigía al inicio y se perdía el token); ahora llevan al registro/login y la invitación se aplica sola. Corregido: con contraseña incorrecta la página de login se recargaba y no se veía el error (el interceptor de 401 actuaba también sobre `/auth/login`). El asistente IA muestra un mensaje claro cuando se agota la cuota de Groq en vez de un error genérico. Añadido `CompraAnio` a `models/__init__.py` (sin él, `alembic --autogenerate` proponía borrar la tabla de compras). Comprobación de la clave de Brevo al arrancar (evita que caduque por inactividad y avisa en el log si no es válida). Tests nuevos: `test_auth_cuenta.py`, `test_agente.py`, `test_email.py`. |
 | 2026-09-21 | Quitada la tarjeta "Ingresos" del dashboard de inicio: mostraba la suma de ventas de todos los años en vez de solo el año en curso, pese a que tanto la query del backend como la petición del frontend ya filtraban por `anio`. Se probaron varios ajustes en el filtrado sin que el problema se reprodujera de forma consistente; sospecha sin confirmar: registros huérfanos en `ventas_anio` que quedan al borrar una venta desde el historial (`eliminar_historial` no limpia su `VentaAnio` asociada). La tarjeta "Ventas {año}" (contador) se mantiene, ya que esa sí mostraba el número correcto. Pendiente: revisar los datos de `ventas_anio` en producción y, si procede, limpiar los huérfanos al borrar del historial antes de reintroducir el importe. |
 | 2026-09-18 | Añadido dictado por voz al asistente IA: botón de micrófono en el chat que transcribe la voz a texto usando la Web Speech API nativa del navegador (`use-speech-recognition.ts`), sin necesidad de backend ni servicios externos. Disponible en Chrome, Edge y navegadores basados en Chromium (incluido Chrome para Android); se avisa cuando el navegador no lo soporta o se deniega el permiso del micrófono. |

@@ -8,7 +8,7 @@ from app.db.database import get_db
 from app.models.animal import Animal, RolAnimal
 from app.models.animal_historial import AnimalHistorial
 from app.models.compra import CompraAnio
-from app.models.ganaderia import GanaderiaUsuario
+from app.models.ganaderia import GanaderiaUsuario, RolUsuario
 from app.models.nacimiento import NacimientoAnio
 from app.models.reproduccion import Prenez
 from app.models.venta import VentaAnio
@@ -133,21 +133,19 @@ def cambiar_crotal(
 ):
     """
     Sustituye el crotal de un animal (normalmente el provisional por el oficial de la
-    Consejería). Solo se permite dentro del plazo desde su alta en la app; pasado ese
-    plazo el crotal queda fijo. Actualiza todas las referencias al crotal antiguo
-    (genealogía, nacimientos, preñeces, compras y ventas) en la misma transacción.
+    Consejería). Cada animal admite UN cambio, sin plazo; después el crotal queda fijo
+    para los colaboradores y solo el admin de la ganadería puede corregirlo (erratas).
+    Actualiza todas las referencias al crotal antiguo (genealogía, nacimientos,
+    preñeces, compras y ventas) en la misma transacción.
     """
     animal = _get_animal_o_404(db, crotal, ganaderia_id)
 
-    if not animal.crotal_editable:
-        if animal.crotal_editable_hasta is None:
-            detalle = "El crotal de este animal no se puede modificar"
-        else:
-            detalle = (
-                "Ha vencido el plazo para modificar el crotal "
-                f"(finalizó el {animal.crotal_editable_hasta.strftime('%d/%m/%Y')})"
-            )
-        raise HTTPException(status_code=403, detail=detalle)
+    if animal.crotal_cambiado and gu.rol != RolUsuario.admin:
+        raise HTTPException(
+            status_code=403,
+            detail="El crotal de este animal ya se cambió una vez. "
+                   "Solo el administrador de la ganadería puede corregirlo.",
+        )
 
     nuevo = body.nuevo_crotal
     if nuevo == animal.crotal:
@@ -159,7 +157,7 @@ def cambiar_crotal(
     # el identity map no choque con el cambio de clave primaria.
     db.expunge(animal)
     db.query(Animal).filter(Animal.crotal == crotal).update(
-        {Animal.crotal: nuevo, Animal.crotal_provisional: False},
+        {Animal.crotal: nuevo, Animal.crotal_provisional: False, Animal.crotal_cambiado: True},
         synchronize_session=False,
     )
     for modelo, columnas in _REFERENCIAS_CROTAL:

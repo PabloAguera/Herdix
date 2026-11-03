@@ -11,6 +11,11 @@ from app.schemas.ganaderia import GanaderiaCreate, GanaderiaRead, GanaderiaUpdat
 router = APIRouter(prefix="/ganaderias", tags=["ganaderías"])
 
 
+def _con_rol(ganaderia: Ganaderia, rol: RolUsuario) -> GanaderiaRead:
+    """GanaderiaRead con el rol del usuario actual (para que el frontend sepa si es admin)."""
+    return GanaderiaRead.model_validate(ganaderia).model_copy(update={"mi_rol": rol})
+
+
 @router.post("/", response_model=GanaderiaRead, status_code=status.HTTP_201_CREATED)
 def crear_ganaderia(
     body: GanaderiaCreate,
@@ -31,7 +36,7 @@ def crear_ganaderia(
     db.add(gu)
     db.commit()
     db.refresh(ganaderia)
-    return ganaderia
+    return _con_rol(ganaderia, RolUsuario.admin)
 
 
 @router.get("/", response_model=list[GanaderiaRead])
@@ -40,13 +45,13 @@ def listar_mis_ganaderias(
     db: Session = Depends(get_db),
 ):
     """Lista todas las ganaderías a las que pertenece el usuario."""
-    ganaderias = (
-        db.query(Ganaderia)
+    filas = (
+        db.query(Ganaderia, GanaderiaUsuario.rol)
         .join(GanaderiaUsuario, Ganaderia.id == GanaderiaUsuario.ganaderia_id)
         .filter(GanaderiaUsuario.usuario_id == current_user.id)
         .all()
     )
-    return ganaderias
+    return [_con_rol(g, rol) for g, rol in filas]
 
 
 @router.patch("/{ganaderia_id}", response_model=GanaderiaRead)
@@ -66,7 +71,7 @@ def renombrar_ganaderia(
     ganaderia.nombre = nombre
     db.commit()
     db.refresh(ganaderia)
-    return ganaderia
+    return _con_rol(ganaderia, gu.rol)
 
 
 @router.get("/{ganaderia_id}", response_model=GanaderiaRead)
@@ -76,7 +81,7 @@ def obtener_ganaderia(
     db: Session = Depends(get_db),
 ):
     """Devuelve los detalles de una ganadería."""
-    return db.get(Ganaderia, ganaderia_id)
+    return _con_rol(db.get(Ganaderia, ganaderia_id), gu.rol)
 
 
 # ─── Gestión de invitaciones ───────────────────────────────────────────────

@@ -22,11 +22,11 @@ export const useGanaderiaStore = create<GanaderiaState>()(
         const ganaderias = await ganaderiasApi.listar();
         set((state) => ({
           ganaderias,
-          // Si la actual ya no está en la lista, la resetea
+          // Usa la versión recién descargada de la actual (con mi_rol actualizado);
+          // si ya no está en la lista, la resetea
           ganaderiaActual:
-            state.ganaderiaActual && ganaderias.find((g) => g.id === state.ganaderiaActual!.id)
-              ? state.ganaderiaActual
-              : ganaderias[0] ?? null,
+            (state.ganaderiaActual && ganaderias.find((g) => g.id === state.ganaderiaActual!.id)) ||
+            (ganaderias[0] ?? null),
         }));
       },
 

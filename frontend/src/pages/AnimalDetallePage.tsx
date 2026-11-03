@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { CrotalInput } from "@/components/ui/CrotalInput";
-import { formatFecha, textoPlazo } from "@/lib/crotal";
 import type { TipoGanaderia } from "@/types";
 
 // ─── Modal para poner / corregir el crotal ────────────────────────────────
@@ -26,13 +25,17 @@ function ModalCrotal({
   onClose: () => void; onCambiado: (a: Animal) => void;
 }) {
   const [valor, setValor] = useState("");
+  const [confirmado, setConfirmado] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  // Ya se usó el único cambio: solo llega aquí un admin corrigiendo una errata
+  const correccionAdmin = !!animal.crotal_cambiado;
 
-  useEffect(() => { if (open) setValor(""); }, [open]);
+  useEffect(() => { if (open) { setValor(""); setConfirmado(false); } }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (correccionAdmin && !confirmado) return;
     setLoading(true);
     try {
       const actualizado = await animalesApi.cambiarCrotal(ganaderiaId, animal.crotal, valor);
@@ -66,15 +69,27 @@ function ModalCrotal({
             </Label>
             <CrotalInput id="nuevo_crotal" value={valor} onChange={setValor} tipo={tipo} required autoFocus />
           </div>
-          {animal.crotal_editable_hasta && (
+          {correccionAdmin ? (
+            <label className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <input type="checkbox" className="mt-0.5" checked={confirmado}
+                onChange={(e) => setConfirmado(e.target.checked)} />
+              <span>
+                Este crotal ya se cambió una vez. Como administrador puedes corregirlo:
+                confirmo que el nuevo número es el correcto.
+              </span>
+            </label>
+          ) : (
             <p className="text-xs text-muted-foreground">
-              Comprueba bien el número: a partir del {formatFecha(animal.crotal_editable_hasta)} el crotal
-              ya no se podrá modificar. Nacimientos, genealogía, preñeces, compras y ventas se actualizan automáticamente.
+              Comprueba bien el número: el crotal solo se puede cambiar una vez. Después, solo el
+              administrador de la ganadería podrá corregirlo.
             </p>
           )}
+          <p className="text-xs text-muted-foreground">
+            Nacimientos, genealogía, preñeces, compras y ventas se actualizan automáticamente.
+          </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || (correccionAdmin && !confirmado)}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar crotal
             </Button>
           </DialogFooter>
@@ -345,6 +360,9 @@ export function AnimalDetallePage() {
   if (!datos || !ganaderiaActual) return null;
 
   const enCenso = animal !== null;
+  // Un cambio de crotal por animal; el admin de la ganadería puede corregirlo siempre
+  const esAdmin = ganaderiaActual?.mi_rol === "admin";
+  const puedeCambiarCrotal = enCenso && (!!animal!.crotal_editable || esAdmin);
 
   const edadMeses = Math.floor(
     (Date.now() - new Date(datos.fecha_nacimiento).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
@@ -377,6 +395,13 @@ export function AnimalDetallePage() {
                   Crotal provisional
                 </span>
               )}
+              {enCenso && !animal!.crotal_provisional && puedeCambiarCrotal && (
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground"
+                  onClick={() => setModalCrotal(true)}>
+                  <Tag className="h-3.5 w-3.5 mr-1" />
+                  Corregir crotal
+                </Button>
+              )}
             </div>
             {datos.nombre && (
               <p className="text-xl text-muted-foreground mt-0.5">{datos.nombre}</p>
@@ -391,41 +416,20 @@ export function AnimalDetallePage() {
         )}
       </div>
 
-      {/* ── Aviso de crotal provisional / plazo de edición ── */}
-      {enCenso && animal!.crotal_editable && animal!.crotal_editable_hasta && (
-        <div className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border px-5 py-4 ${
-          animal!.crotal_provisional ? "border-amber-300 bg-amber-50" : "bg-muted/30"
-        }`}>
+      {/* ── Crotal provisional pendiente del oficial ── */}
+      {enCenso && animal!.crotal_provisional && puedeCambiarCrotal && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4">
           <div className="flex items-start gap-3 flex-1">
-            {animal!.crotal_provisional
-              ? <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-              : <Tag className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />}
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
             <p className="text-sm">
-              {animal!.crotal_provisional ? (
-                <>
-                  <span className="font-semibold">Pendiente del crotal de la Consejería.</span>{" "}
-                  Puedes ponerlo hasta el {formatFecha(animal!.crotal_editable_hasta)} ({textoPlazo(animal!.crotal_editable_hasta)}).
-                  Después el crotal ya no se podrá cambiar.
-                </>
-              ) : (
-                <>Puedes corregir el crotal hasta el {formatFecha(animal!.crotal_editable_hasta)} ({textoPlazo(animal!.crotal_editable_hasta)}).</>
-              )}
+              <span className="font-semibold">Pendiente del crotal de la Consejería.</span>{" "}
+              Cuando lo tengas, ponlo aquí. Revisa bien el número: el crotal solo se puede cambiar una vez.
             </p>
           </div>
-          <Button size="sm" variant={animal!.crotal_provisional ? "default" : "outline"} className="shrink-0"
-            onClick={() => setModalCrotal(true)}>
+          <Button size="sm" className="shrink-0" onClick={() => setModalCrotal(true)}>
             <Pencil className="h-3.5 w-3.5 mr-1.5" />
-            {animal!.crotal_provisional ? "Poner crotal oficial" : "Corregir crotal"}
+            Poner crotal oficial
           </Button>
-        </div>
-      )}
-      {enCenso && animal!.crotal_provisional && !animal!.crotal_editable && animal!.crotal_editable_hasta && (
-        <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-5 py-4">
-          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <p className="text-sm">
-            El plazo para poner el crotal oficial terminó el {formatFecha(animal!.crotal_editable_hasta)}.
-            El identificador provisional ya no se puede modificar.
-          </p>
         </div>
       )}
 

@@ -1,12 +1,11 @@
 import secrets
-from datetime import date, timedelta
+from datetime import date
 from enum import Enum as PyEnum
 
 from sqlalchemy import String, Date, ForeignKey, Enum, Text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.config import settings
 from app.db.database import Base
 
 PREFIJO_CROTAL_PROVISIONAL = "PROV-"
@@ -68,11 +67,14 @@ class Animal(Base):
 
     # Alta en la app y crotal provisional.
     # Al nacer, el ganadero aún no tiene el crotal oficial (lo asigna la Consejería),
-    # así que se le da un identificador provisional y hay un plazo
-    # (settings.CROTAL_PLAZO_EDICION_DIAS) desde fecha_alta para cambiarlo.
-    # Animales anteriores a esta funcionalidad tienen fecha_alta NULL → crotal no editable.
+    # así que se le da un identificador provisional. El crotal de cada animal se puede
+    # cambiar UNA vez, sin plazo (normalmente provisional → oficial). Después queda fijo,
+    # salvo para el admin de la ganadería, que siempre puede corregir erratas.
     fecha_alta: Mapped[date | None] = mapped_column(Date, nullable=True, default=date.today)
     crotal_provisional: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    crotal_cambiado: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
 
@@ -83,16 +85,9 @@ class Animal(Base):
         return f"<Animal crotal={self.crotal!r} nombre={self.nombre!r}>"
 
     @property
-    def crotal_editable_hasta(self) -> date | None:
-        """Último día en que se puede modificar el crotal (None si nunca fue editable)."""
-        if self.fecha_alta is None:
-            return None
-        return self.fecha_alta + timedelta(days=settings.CROTAL_PLAZO_EDICION_DIAS)
-
-    @property
     def crotal_editable(self) -> bool:
-        hasta = self.crotal_editable_hasta
-        return hasta is not None and date.today() <= hasta
+        """True si aún no se ha usado el único cambio de crotal (el admin puede siempre)."""
+        return not self.crotal_cambiado
 
     @staticmethod
     def generar_crotal_provisional() -> str:

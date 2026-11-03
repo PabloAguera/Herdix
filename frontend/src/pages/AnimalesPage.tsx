@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Search, Trash2, Pencil, AlertTriangle } from "lucide-react";
-import { PREFIJO_CROTAL_PROVISIONAL, formatFecha } from "@/lib/crotal";
+import { PREFIJO_CROTAL_PROVISIONAL } from "@/lib/crotal";
 import { useGanaderiaStore } from "@/stores/ganaderiaStore";
 import { animalesApi } from "@/api/animales";
 import { useToast } from "@/hooks/use-toast";
@@ -414,10 +414,8 @@ export function AnimalesPage() {
     return coincideTexto && coincideSexo && coincideRol;
   });
 
-  // Animales con crotal provisional que aún pueden recibir el oficial
-  const pendientesCrotal = animales
-    .filter((a) => a.crotal_provisional && a.crotal_editable && a.crotal_editable_hasta)
-    .sort((a, b) => a.crotal_editable_hasta!.localeCompare(b.crotal_editable_hasta!));
+  // Animales con crotal provisional pendientes de recibir el oficial
+  const pendientesCrotal = animales.filter((a) => a.crotal_provisional);
 
   const edadMeses = (fechaNac: string) => {
     const hoy = new Date();
@@ -461,7 +459,7 @@ export function AnimalesPage() {
                 ? "1 animal pendiente del crotal de la Consejería"
                 : `${pendientesCrotal.length} animales pendientes del crotal de la Consejería`}
             </span>
-            {" · "}el primer plazo vence el {formatFecha(pendientesCrotal[0].crotal_editable_hasta!)}.{" "}
+            {" · "}
             <span className="underline">Ver</span>
           </span>
         </button>
