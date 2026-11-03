@@ -14,11 +14,26 @@ from app.services.email import comprobar_clave_brevo
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
 
 
+# Cada cuánto se comprueba la clave de Brevo. Brevo caduca las claves tras 90 días
+# sin uso; en un plan de pago el backend casi nunca se reinicia, así que no basta
+# con comprobarla al arrancar.
+INTERVALO_COMPROBACION_BREVO_SEG = 24 * 60 * 60
+
+
+def _comprobar_brevo_periodicamente(parar: threading.Event) -> None:
+    while True:
+        comprobar_clave_brevo()
+        if parar.wait(INTERVALO_COMPROBACION_BREVO_SEG):
+            return
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # En segundo plano para no retrasar el arranque (Render espera a /health)
-    threading.Thread(target=comprobar_clave_brevo, daemon=True).start()
+    parar = threading.Event()
+    threading.Thread(target=_comprobar_brevo_periodicamente, args=(parar,), daemon=True).start()
     yield
+    parar.set()
 
 
 app = FastAPI(

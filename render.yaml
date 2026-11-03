@@ -4,7 +4,8 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: free
+    # starter (7 $/mes): no se duerme. Con free tardaba ~1 min en despertar tras 15 min sin uso
+    plan: starter
     region: frankfurt
     healthCheckPath: /health
     envVars:

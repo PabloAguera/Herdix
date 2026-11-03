@@ -44,3 +44,20 @@ def test_brevo_inaccesible_no_rompe(monkeypatch):
     monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-prueba")
     monkeypatch.setattr(email_service.httpx, "get", falla)
     assert email_service.comprobar_clave_brevo() is None
+
+
+def test_comprobacion_periodica_se_repite_y_para(monkeypatch):
+    import threading
+    from app import main
+
+    llamadas = []
+    monkeypatch.setattr(main, "comprobar_clave_brevo", lambda: llamadas.append(1))
+    monkeypatch.setattr(main, "INTERVALO_COMPROBACION_BREVO_SEG", 0.01)
+    parar = threading.Event()
+    hilo = threading.Thread(target=main._comprobar_brevo_periodicamente, args=(parar,))
+    hilo.start()
+    threading.Event().wait(0.1)
+    parar.set()
+    hilo.join(timeout=1)
+    assert not hilo.is_alive()
+    assert len(llamadas) >= 3

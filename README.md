@@ -252,10 +252,10 @@ docker exec herdix_backend alembic upgrade head
 
 ## Despliegue en producción
 
-Stack pensado para la capa gratuita, dimensionado para ~70-100 usuarios totales y ~20 concurrentes en pico:
+Stack dimensionado para ~70-100 usuarios totales y ~20 concurrentes en pico (todo gratis salvo el backend en Render, 7 $/mes):
 
 - **Neon** (PostgreSQL gestionado, capa gratuita permanente)
-- **Render** (backend en Docker, capa gratuita — se "duerme" tras 15 min sin uso y tarda 30-60s en despertar en la siguiente petición)
+- **Render** (backend en Docker, instancia **Starter**, 7 $/mes — siempre encendida; con la capa gratuita se "dormía" tras 15 min sin uso y tardaba ~1 min en despertar)
 - **Vercel** (frontend estático + PWA, capa gratuita)
 
 ### 1. Base de datos (Neon)
@@ -282,7 +282,7 @@ Se usa la API HTTP de Brevo y no SMTP porque el plan gratuito de Render bloquea 
 3. **SMTP & API → API Keys → Generate a new API key**.
 4. En Render: `BREVO_API_KEY` = la clave, `EMAIL_REMITENTE` = el email verificado.
 
-Brevo caduca las claves tras **90 días sin uso**. Para evitarlo, el backend hace una llamada de comprobación a Brevo cada vez que arranca (en Render arranca cada vez que alguien abre la app tras estar dormida), así que la clave se mantiene activa mientras la app se use, aunque nadie se registre ni recupere la contraseña. En los logs de Render aparece al arrancar `Clave de Brevo válida` o, si algo falla, `La clave de Brevo no es válida o ha caducado` con instrucciones.
+Brevo caduca las claves tras **90 días sin uso**. Para evitarlo, el backend hace una llamada de comprobación a Brevo al arrancar y después **una vez al día**, así que la clave se mantiene activa aunque nadie se registre ni recupere la contraseña. En los logs de Render aparece al arrancar `Clave de Brevo válida` o, si algo falla, `La clave de Brevo no es válida o ha caducado` con instrucciones.
 
 Con un remitente `@gmail.com` algunos correos pueden acabar en spam. Si en el futuro se compra un dominio propio, verificarlo en Brevo (registros DKIM/DMARC) y usar un remitente tipo `no-responder@tudominio.es` lo soluciona.
 
@@ -339,6 +339,7 @@ Los cambios relevantes se registran aquí al modificar funcionalidades existente
 
 | Fecha | Cambio |
 |---|---|
+| 2026-11-03 | Backend en el plan **Starter** de Render (`render.yaml`: `plan: starter`) para que no se duerma. Como el backend ya casi no se reinicia, la comprobación de la clave de Brevo pasa a hacerse también una vez al día (no solo al arrancar). |
 | 2026-11-03 | **Nueva página Gastos.** Tabla `gastos` (migración `c9d0e1f2a3b4`) con categoría (alimentación, veterinario, fincas, otros), tipo, vendedor, precio, fecha y notas. Endpoints `/ganaderias/{id}/gastos` (listar con filtros de año y categoría, crear, editar, borrar), `/gastos/resumen` (totales por año y categoría) y `/gastos/sugerencias` (vendedores y tipos más usados). Página con pestañas Resumen + 4 categorías, desglose por tipo, gráfico anual apilado sin librerías nuevas y vista de tarjetas en móvil. Nueva herramienta del asistente `resumen_gastos`. Visible para todos los miembros de la ganadería. |
 | 2026-11-03 | **Crotal: un cambio por animal, sin plazo.** Sustituye el plazo de 60 días desde el alta (`CROTAL_PLAZO_EDICION_DIAS`, eliminada), que no encajaba con todas las especies (en equino la identificación oficial puede tardar meses). Nueva columna `crotal_cambiado` (migración `b8c9d0e1f2a3`); todos los animales existentes empiezan con su cambio disponible, incluidos los anteriores a la función de crotal provisional. El admin puede corregir siempre, con casilla de confirmación. `GanaderiaRead` incluye ahora `mi_rol` (rol del usuario actual) para que el frontend sepa si es admin. |
 | 2026-11-03 | **Cuentas y acceso.** Eliminada la lista blanca `ALLOWED_EMAILS`: registro abierto con verificación de email obligatoria (los usuarios existentes quedan verificados en la migración `a7b8c9d0e1f2`). Nuevas pantallas: recuperar contraseña, restablecer contraseña, confirmar correo y cambiar contraseña en Ajustes; botón para ver la contraseña al escribirla. `token_version` en el JWT para cerrar sesiones al cambiar la contraseña. Límite de intentos en memoria (`core/rate_limit.py`) y `--proxy-headers` en `entrypoint.sh` para ver la IP real tras el proxy de Render. Envío de correos con la API de Brevo (`services/email.py`; en local se escriben en el log). Corregido: los enlaces de invitación `/invitacion/<token>` no funcionaban (el router los redirigía al inicio y se perdía el token); ahora llevan al registro/login y la invitación se aplica sola. Corregido: con contraseña incorrecta la página de login se recargaba y no se veía el error (el interceptor de 401 actuaba también sobre `/auth/login`). El asistente IA muestra un mensaje claro cuando se agota la cuota de Groq en vez de un error genérico. Añadido `CompraAnio` a `models/__init__.py` (sin él, `alembic --autogenerate` proponía borrar la tabla de compras). Comprobación de la clave de Brevo al arrancar (evita que caduque por inactividad y avisa en el log si no es válida). Tests nuevos: `test_auth_cuenta.py`, `test_agente.py`, `test_email.py`. |
