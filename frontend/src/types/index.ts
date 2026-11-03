@@ -216,3 +216,41 @@ export interface Venta {
   destino: DestinoVenta;
   notas: string | null;
 }
+
+// ─── Gastos ────────────────────────────────────────────────────────────────
+
+export type CategoriaGasto = "alimentacion" | "veterinario" | "fincas" | "otros";
+
+export interface Gasto {
+  id: number;
+  ganaderia_id: number;
+  fecha: string;
+  categoria: CategoriaGasto;
+  tipo: string;
+  vendedor: string | null;
+  precio: string;
+  notas: string | null;
+}
+
+export interface GastoCreate {
+  fecha: string;
+  categoria: CategoriaGasto;
+  tipo: string;
+  vendedor?: string | null;
+  precio: number;
+  notas?: string | null;
+}
+
+export interface ResumenAnioGastos {
+  anio: number;
+  alimentacion: string;
+  veterinario: string;
+  fincas: string;
+  otros: string;
+  total: string;
+}
+
+export interface SugerenciasGastos {
+  vendedores: string[];
+  tipos: string[];
+}

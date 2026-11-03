@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, ganaderias, animales, ventas, compras, reproduccion, agente
+from app.routers import auth, ganaderias, animales, ventas, compras, reproduccion, agente, gastos
 from app.services.email import comprobar_clave_brevo
 
 # Sin esto, los avisos de la app (p. ej. clave de Brevo inválida) no salen en los logs de Render
@@ -58,6 +58,7 @@ app.include_router(ganaderias.router)
 app.include_router(animales.router)
 app.include_router(ventas.router)
 app.include_router(compras.router)
+app.include_router(gastos.router)
 app.include_router(reproduccion.router)
 app.include_router(agente.router)
 

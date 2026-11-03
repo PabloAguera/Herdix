@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Beef, History, Baby, TrendingUp, ShoppingCart, Settings, Heart, Bot, X } from "lucide-react";
+import { LayoutDashboard, Beef, History, Baby, TrendingUp, ShoppingCart, Settings, Heart, Bot, Wallet, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getEspecieConfig } from "@/lib/especieConfig";
 import { useGanaderiaStore } from "@/stores/ganaderiaStore";
@@ -12,6 +12,7 @@ const navItems = [
   { to: "/reproduccion", label: "Reproducción", icon: Heart },
   { to: "/ventas", label: "Ventas", icon: TrendingUp },
   { to: "/compras", label: "Compras", icon: ShoppingCart },
+  { to: "/gastos", label: "Gastos", icon: Wallet },
   { to: "/historial", label: "Historial", icon: History },
   { to: "/agente", label: "Asistente IA", icon: Bot },
 ];

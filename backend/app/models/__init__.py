@@ -5,6 +5,7 @@ from app.models.animal_historial import AnimalHistorial
 from app.models.nacimiento import NacimientoAnio
 from app.models.venta import VentaAnio
 from app.models.compra import CompraAnio
+from app.models.gasto import Gasto
 from app.models.reproduccion import Prenez
 
 __all__ = [
@@ -18,5 +19,6 @@ __all__ = [
     "NacimientoAnio",
     "VentaAnio",
     "CompraAnio",
+    "Gasto",
     "Prenez",
 ]

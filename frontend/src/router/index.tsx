@@ -12,6 +12,7 @@ import { AjustesPage } from "@/pages/AjustesPage";
 import { ComprasPage } from "@/pages/ComprasPage";
 import { ReproduccionPage } from "@/pages/ReproduccionPage";
 import { AgentePage } from "@/pages/AgentePage";
+import { GastosPage } from "@/pages/GastosPage";
 import { OlvidePasswordPage } from "@/pages/OlvidePasswordPage";
 import { RestablecerPasswordPage } from "@/pages/RestablecerPasswordPage";
 import { VerificarEmailPage } from "@/pages/VerificarEmailPage";
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "reproduccion", element: <ReproduccionPage /> },
       { path: "ventas", element: <VentasPage /> },
       { path: "compras", element: <ComprasPage /> },
+      { path: "gastos", element: <GastosPage /> },
       { path: "historial", element: <HistorialPage /> },
       { path: "ajustes", element: <AjustesPage /> },
       { path: "agente", element: <AgentePage /> },

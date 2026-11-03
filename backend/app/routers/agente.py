@@ -10,7 +10,7 @@ from datetime import date, datetime
 from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_ganaderia_usuario
@@ -22,6 +22,7 @@ from app.models.ganaderia import Ganaderia, GanaderiaUsuario
 from app.models.nacimiento import NacimientoAnio
 from app.models.reproduccion import Prenez
 from app.models.venta import VentaAnio
+from app.models.gasto import Gasto
 
 router = APIRouter(
     prefix="/ganaderias/{ganaderia_id}/agente",
@@ -112,6 +113,19 @@ HERRAMIENTAS: list[dict] = [
             "anio": {"type": ["integer", "null"], "description": "Año concreto. Omitir para todos."},
             "comprador": {"type": ["string", "null"], "description": "Filtro parcial por nombre del comprador."},
             "crotal": {"type": ["string", "null"], "description": "Crotal exacto del animal vendido."},
+        }, "required": []}),
+    _tool("resumen_gastos",
+        "Gastos de la explotación. Categorías: alimentacion (Pienso, Tacos, Forraje, Paja, Rollos, Otros), "
+        "veterinario (Medicamentos, Inseminación, Partos, Herraje, Otros), fincas (Abonos, Herbicidas, Semillas, "
+        "Cal, Otros) y otros (tipo libre, p. ej. gasóleo o seguros). Devuelve el total, el desglose por año, "
+        "categoría y tipo, y los gastos más recientes con fecha, vendedor, precio y notas. "
+        "Úsala para preguntas como '¿cuánto gasté en pienso este año?' o '¿qué me costó el veterinario en 2025?'.",
+        {"type": "object", "properties": {
+            "anio": {"type": ["integer", "null"], "description": "Año concreto. Omitir para todos los años."},
+            "categoria": {"type": ["string", "null"], "enum": ["alimentacion", "veterinario", "fincas", "otros", None],
+                          "description": "Filtrar por categoría."},
+            "tipo": {"type": ["string", "null"], "description": "Filtro parcial por tipo (p. ej. 'pienso', 'gasóleo')."},
+            "vendedor": {"type": ["string", "null"], "description": "Filtro parcial por vendedor o veterinario."},
         }, "required": []}),
     _tool("listar_prenyeces",
         "Lista las preñeces activas con nombre y crotal de madre, fecha de cubrición, fecha esperada de parto y días que quedan.",
@@ -340,6 +354,45 @@ def _listar_compras(db: Session, ganaderia_id: int, params: dict) -> dict:
     }
 
 
+def _resumen_gastos(db: Session, ganaderia_id: int, params: dict) -> dict:
+    q = db.query(Gasto).filter(Gasto.ganaderia_id == ganaderia_id)
+    if anio := params.get("anio"):
+        q = q.filter(extract("year", Gasto.fecha) == anio)
+    if categoria := params.get("categoria"):
+        q = q.filter(Gasto.categoria == categoria)
+    if tipo := params.get("tipo"):
+        q = q.filter(Gasto.tipo.ilike(f"%{tipo}%"))
+    if vendedor := params.get("vendedor"):
+        q = q.filter(Gasto.vendedor.ilike(f"%{vendedor}%"))
+    gastos = q.order_by(Gasto.fecha.desc(), Gasto.id.desc()).all()
+
+    def _sumar(clave) -> dict:
+        totales: dict = {}
+        for g in gastos:
+            k = clave(g)
+            totales[k] = round(totales.get(k, 0) + float(g.precio), 2)
+        return dict(sorted(totales.items(), key=lambda x: -x[1]))
+
+    return {
+        "numero_gastos": len(gastos),
+        "total_eur": round(sum(float(g.precio) for g in gastos), 2),
+        "por_anio": _sumar(lambda g: g.fecha.year),
+        "por_categoria": _sumar(lambda g: g.categoria.value),
+        "por_tipo": _sumar(lambda g: f"{g.categoria.value}/{g.tipo}"),
+        "ultimos_gastos": [
+            {
+                "fecha": _s(g.fecha),
+                "categoria": g.categoria.value,
+                "tipo": g.tipo,
+                "vendedor": g.vendedor,
+                "precio_eur": float(g.precio),
+                "notas": g.notas,
+            }
+            for g in gastos[:30]
+        ],
+    }
+
+
 def _listar_ventas(db: Session, ganaderia_id: int, params: dict) -> dict:
     q = db.query(VentaAnio).filter_by(ganaderia_id=ganaderia_id)
     if anio := params.get("anio"):
@@ -471,6 +524,7 @@ def _listar_prenyeces(db: Session, ganaderia_id: int) -> dict:
 def _ejecutar_herramienta(nombre: str, params: dict, db: Session, ganaderia_id: int) -> dict:
     mapa = {
         "estadisticas_ganaderia": lambda: _estadisticas(db, ganaderia_id),
+        "resumen_gastos": lambda: _resumen_gastos(db, ganaderia_id, params),
         "listar_animales": lambda: _listar_animales(db, ganaderia_id, params),
         "detalle_animal": lambda: _detalle_animal(db, ganaderia_id, params),
         "listar_nacimientos": lambda: _listar_nacimientos(db, ganaderia_id, params),
@@ -507,7 +561,7 @@ def chat(
         f'Eres el asistente de gestión de la ganadería "{ganaderia.nombre}" (tipo: {tipo_label}).\n'
         f"Hoy es {hoy}.\n\n"
         "Tu función es responder preguntas sobre los animales, nacimientos, compras, ventas, "
-        "reproducciones y estadísticas de esta ganadería.\n"
+        "reproducciones, gastos y estadísticas de esta ganadería.\n"
         "Usa siempre las herramientas para obtener datos reales antes de responder — nunca inventes cifras.\n"
         "IMPORTANTE — nombres de animales: el ganadero conoce a sus animales por el NOMBRE, no por el crotal. "
         "Al responder, usa siempre el nombre del animal como identificador principal. "

@@ -92,6 +92,18 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 - Registro de compras de animales con fecha, vendedor y precio
 - Historial de compras filtrable por año
 
+### Gastos
+- Página **Gastos** en el menú, con pestañas: **Resumen**, **Alimentación**, **Veterinario**, **Fincas** y **Otros**
+- Cada gasto tiene fecha, tipo, vendedor (o veterinario), precio y notas
+  - Alimentación: Pienso, Tacos, Forraje, Paja, Rollos, Otros
+  - Veterinario: Medicamentos, Inseminación, Partos, Herraje, Otros
+  - Fincas: Abonos, Herbicidas, Semillas, Cal, Otros
+  - Otros: tipo libre (gasóleo, seguros, reparaciones…), con sugerencias de los ya usados
+- En cada categoría: total del año, desglose por tipo y lista de gastos (editar y borrar)
+- **Resumen**: gasto de cada año por categoría y total, con gráfico de barras; pulsando una cifra se abre esa categoría y año
+- Vendedores con autocompletado a partir de los ya usados
+- Los tipos fijos están en `backend/app/models/gasto.py` y `frontend/src/lib/gastos.ts` (añadir uno no necesita migración)
+
 ### Dashboard
 - Total de animales en censo activo
 - Nacimientos y ventas del año en curso
@@ -111,7 +123,7 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 ### Asistente IA
 - Chat en lenguaje natural para consultar datos de la ganadería
 - Basado en Groq (gratuito, 14.000 peticiones/día)
-- El agente dispone de **9 herramientas** para consultar la base de datos en tiempo real:
+- El agente dispone de **10 herramientas** para consultar la base de datos en tiempo real:
   - `estadisticas_ganaderia` — Resumen estadístico del censo
   - `listar_animales` — Filtros por sexo, rol, raza o nombre
   - `detalle_animal` — Ficha completa de un animal por crotal
@@ -121,6 +133,7 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
   - `listar_compras` — Compras por año
   - `listar_ventas` — Ventas con comprador, precio y destino
   - `listar_prenyeces` — Preñeces activas con días para el parto
+  - `resumen_gastos` — Gastos por año, categoría, tipo o vendedor (p. ej. "¿cuánto gasté en pienso este año?")
 - Responde en español usando nombres de animales como identificador principal
 - Historial de conversaciones persistente por ganadería (localStorage)
 - **Dictado por voz**: se puede preguntar hablando en vez de escribir (reconocimiento de voz nativo del navegador, sin backend ni claves adicionales; funciona en Chrome/Edge y navegadores basados en Chromium, incluido Android)
@@ -297,6 +310,7 @@ La app queda con su propio icono, se abre a pantalla completa y no requiere abri
 |---|---|---|
 | Ver y gestionar animales | ✓ | ✓ |
 | Registrar nacimientos, ventas, compras | ✓ | ✓ |
+| Ver y registrar gastos | ✓ | ✓ |
 | Gestionar preñeces | ✓ | ✓ |
 | Usar el asistente IA | ✓ | ✓ |
 | Cambiar el crotal de un animal (una vez) | ✓ | ✓ |
@@ -325,6 +339,7 @@ Los cambios relevantes se registran aquí al modificar funcionalidades existente
 
 | Fecha | Cambio |
 |---|---|
+| 2026-11-03 | **Nueva página Gastos.** Tabla `gastos` (migración `c9d0e1f2a3b4`) con categoría (alimentación, veterinario, fincas, otros), tipo, vendedor, precio, fecha y notas. Endpoints `/ganaderias/{id}/gastos` (listar con filtros de año y categoría, crear, editar, borrar), `/gastos/resumen` (totales por año y categoría) y `/gastos/sugerencias` (vendedores y tipos más usados). Página con pestañas Resumen + 4 categorías, desglose por tipo, gráfico anual apilado sin librerías nuevas y vista de tarjetas en móvil. Nueva herramienta del asistente `resumen_gastos`. Visible para todos los miembros de la ganadería. |
 | 2026-11-03 | **Crotal: un cambio por animal, sin plazo.** Sustituye el plazo de 60 días desde el alta (`CROTAL_PLAZO_EDICION_DIAS`, eliminada), que no encajaba con todas las especies (en equino la identificación oficial puede tardar meses). Nueva columna `crotal_cambiado` (migración `b8c9d0e1f2a3`); todos los animales existentes empiezan con su cambio disponible, incluidos los anteriores a la función de crotal provisional. El admin puede corregir siempre, con casilla de confirmación. `GanaderiaRead` incluye ahora `mi_rol` (rol del usuario actual) para que el frontend sepa si es admin. |
 | 2026-11-03 | **Cuentas y acceso.** Eliminada la lista blanca `ALLOWED_EMAILS`: registro abierto con verificación de email obligatoria (los usuarios existentes quedan verificados en la migración `a7b8c9d0e1f2`). Nuevas pantallas: recuperar contraseña, restablecer contraseña, confirmar correo y cambiar contraseña en Ajustes; botón para ver la contraseña al escribirla. `token_version` en el JWT para cerrar sesiones al cambiar la contraseña. Límite de intentos en memoria (`core/rate_limit.py`) y `--proxy-headers` en `entrypoint.sh` para ver la IP real tras el proxy de Render. Envío de correos con la API de Brevo (`services/email.py`; en local se escriben en el log). Corregido: los enlaces de invitación `/invitacion/<token>` no funcionaban (el router los redirigía al inicio y se perdía el token); ahora llevan al registro/login y la invitación se aplica sola. Corregido: con contraseña incorrecta la página de login se recargaba y no se veía el error (el interceptor de 401 actuaba también sobre `/auth/login`). El asistente IA muestra un mensaje claro cuando se agota la cuota de Groq en vez de un error genérico. Añadido `CompraAnio` a `models/__init__.py` (sin él, `alembic --autogenerate` proponía borrar la tabla de compras). Comprobación de la clave de Brevo al arrancar (evita que caduque por inactividad y avisa en el log si no es válida). Tests nuevos: `test_auth_cuenta.py`, `test_agente.py`, `test_email.py`. |
 | 2026-09-21 | Quitada la tarjeta "Ingresos" del dashboard de inicio: mostraba la suma de ventas de todos los años en vez de solo el año en curso, pese a que tanto la query del backend como la petición del frontend ya filtraban por `anio`. Se probaron varios ajustes en el filtrado sin que el problema se reprodujera de forma consistente; sospecha sin confirmar: registros huérfanos en `ventas_anio` que quedan al borrar una venta desde el historial (`eliminar_historial` no limpia su `VentaAnio` asociada). La tarjeta "Ventas {año}" (contador) se mantiene, ya que esa sí mostraba el número correcto. Pendiente: revisar los datos de `ventas_anio` en producción y, si procede, limpiar los huérfanos al borrar del historial antes de reintroducir el importe. |
