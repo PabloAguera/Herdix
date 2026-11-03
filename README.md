@@ -15,6 +15,7 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 - **python-jose** — JWT (autenticación)
 - **passlib + bcrypt** — Hashing de contraseñas
 - **OpenAI SDK** — Cliente para Groq API (compatible con OpenAI)
+- **httpx** — Envío de correos con la API de Brevo
 - **Uvicorn** — Servidor ASGI
 
 ### Frontend
@@ -33,16 +34,22 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 - **Vercel** — Hosting del frontend (build estático + PWA instalable)
 - **Render** — Hosting del backend (contenedor Docker)
 - **Neon** — PostgreSQL gestionado en la nube (capa gratuita)
+- **Brevo** — Envío de correos transaccionales (capa gratuita, 300 correos/día)
 
 ---
 
 ## Funcionalidades implementadas
 
 ### Autenticación y usuarios
-- Registro con lista blanca de emails (`ALLOWED_EMAILS` en `.env`)
-- Login con email y contraseña, token JWT
+- **Registro abierto con verificación de email**: cualquiera puede crear su cuenta, pero no puede entrar hasta pulsar el enlace que recibe por correo (caduca en 48 h, se puede reenviar desde el login)
+- Login con email y contraseña, token JWT (el email no distingue mayúsculas)
+- **Recuperar contraseña**: "¿La has olvidado?" envía un enlace de un solo uso que caduca en 30 minutos
+- **Cambiar contraseña** desde Ajustes → Tu cuenta
+- Al cambiar o restablecer la contraseña **se cierran las sesiones abiertas en el resto de dispositivos** (`token_version` dentro del JWT)
+- **Límite de intentos** en login (5 por email cada 5 min), registro y envío de correos, contra fuerza bruta y spam
+- Los enlaces de los correos se guardan solo como hash SHA-256 en la BD, y las respuestas de "olvidé mi contraseña" son idénticas exista o no la cuenta
 - Roles por ganadería: **admin** y **colaborador**
-- Sistema de invitaciones mediante token: el admin genera un enlace y cualquier usuario registrado puede unirse a la ganadería como colaborador
+- Sistema de invitaciones mediante enlace: el admin genera un enlace `/invitacion/<token>`; quien lo abre se une a la ganadería como colaborador. Si aún no tiene cuenta, se le lleva al registro y la invitación se aplica sola al confirmar el correo
 - Un usuario puede pertenecer a varias ganaderías con roles distintos en cada una
 
 ### Gestión de ganaderías
@@ -167,9 +174,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 # Groq API (gratuito en console.groq.com)
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
 
-# Emails con permiso para registrarse (separados por comas)
-ALLOWED_EMAILS=tu@email.com,otro@email.com
+# URL del frontend (para los enlaces de los correos)
+FRONTEND_URL=http://localhost:5173
+
+# Correo (Brevo). Vacío en local: los correos salen en el log del backend
+BREVO_API_KEY=
+EMAIL_REMITENTE=tu@email.com
 ```
+
+En local no hace falta configurar Brevo: el contenido de cada correo (con su enlace de verificación o de restablecer contraseña) se escribe en el log del backend (`docker logs herdix_backend`).
 
 Variables internas del backend (configuradas en `docker-compose.yml`, con valor por defecto si no están en el `.env`):
 
@@ -179,6 +192,9 @@ Variables internas del backend (configuradas en `docker-compose.yml`, con valor 
 | `SECRET_KEY` | (cambiar en producción) | Clave para firmar JWT |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 60 | Expiración del token |
 | `AGENTE_MODEL` | `openai/gpt-oss-120b` | Modelo LLM del agente (Groq retiró `llama-3.3-70b-versatile` el 17/06/2026) |
+| `FRONTEND_URL` | `http://localhost:5173` | URL pública del frontend, para construir los enlaces de los correos |
+| `BREVO_API_KEY` | (vacía) | Clave de la API de Brevo. Si está vacía, los correos no se envían y se escriben en el log |
+| `EMAIL_REMITENTE` / `EMAIL_REMITENTE_NOMBRE` | — / `Herdix` | Remitente de los correos (debe estar verificado en Brevo) |
 | `CORS_ORIGINS` | `https://herdix.vercel.app,http://localhost:5173` | Dominios permitidos para llamar a la API (separados por comas). Solo aplica en producción; en local se permite cualquier origen |
 
 Variable del **frontend** (Vite, solo necesaria en producción):
@@ -238,10 +254,20 @@ Stack pensado para la capa gratuita, dimensionado para ~70-100 usuarios totales 
 3. Rellenar las variables de entorno marcadas como manuales en el Blueprint (o en Settings → Environment si se crea a mano):
    - `DATABASE_URL` → la connection string pooled de Neon
    - `GROQ_API_KEY` → tu clave de [console.groq.com](https://console.groq.com)
-   - `ALLOWED_EMAILS` → tus emails autorizados, separados por comas
+   - `BREVO_API_KEY` y `EMAIL_REMITENTE` → ver paso 2b
+   - `FRONTEND_URL` → la URL de Vercel (paso 3), p. ej. `https://herdix.vercel.app`
    - `CORS_ORIGINS` → se rellena en el paso 4, una vez se conozca la URL de Vercel
    - `SECRET_KEY` se genera sola (`generateValue: true` en el Blueprint); si se crea a mano, generarla con `openssl rand -hex 32`
 4. Al desplegar, Render asigna una URL tipo `https://herdix-backend.onrender.com`. Anotarla, se usará como `VITE_API_URL` en Vercel.
+
+### 2b. Correo (Brevo)
+Se usa la API HTTP de Brevo y no SMTP porque el plan gratuito de Render bloquea los puertos SMTP salientes.
+1. Crear cuenta gratuita en [brevo.com](https://www.brevo.com).
+2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**: añadir el email remitente (p. ej. tu Gmail) y confirmarlo desde el correo que envía Brevo.
+3. **SMTP & API → API Keys → Generate a new API key**.
+4. En Render: `BREVO_API_KEY` = la clave, `EMAIL_REMITENTE` = el email verificado.
+
+Con un remitente `@gmail.com` algunos correos pueden acabar en spam. Si en el futuro se compra un dominio propio, verificarlo en Brevo (registros DKIM/DMARC) y usar un remitente tipo `no-responder@tudominio.es` lo soluciona.
 
 ### 3. Frontend (Vercel)
 1. Crear cuenta en [vercel.com](https://vercel.com) e importar el mismo repositorio.
@@ -277,8 +303,10 @@ La app queda con su propio icono, se abre a pantalla completa y no requiere abri
 
 ## Privacidad y seguridad
 
-- El registro está restringido por lista blanca de emails (`ALLOWED_EMAILS`)
-- Las contraseñas se almacenan con bcrypt
+- Registro abierto, pero solo se puede entrar tras verificar el email
+- Las contraseñas se almacenan con bcrypt; los tokens de los enlaces por correo, como hash SHA-256
+- Límite de intentos en login, registro y recuperación de contraseña
+- Cambiar o restablecer la contraseña invalida todas las sesiones abiertas
 - Todos los endpoints verifican que el usuario pertenece a la ganadería que consulta
 - PostgreSQL no debe exponerse al exterior (sin mapeo de puerto `5432` en producción)
 - En producción usar HTTPS (recomendado: Caddy como proxy inverso)
@@ -291,6 +319,7 @@ Los cambios relevantes se registran aquí al modificar funcionalidades existente
 
 | Fecha | Cambio |
 |---|---|
+| 2026-11-03 | **Cuentas y acceso.** Eliminada la lista blanca `ALLOWED_EMAILS`: registro abierto con verificación de email obligatoria (los usuarios existentes quedan verificados en la migración `a7b8c9d0e1f2`). Nuevas pantallas: recuperar contraseña, restablecer contraseña, confirmar correo y cambiar contraseña en Ajustes; botón para ver la contraseña al escribirla. `token_version` en el JWT para cerrar sesiones al cambiar la contraseña. Límite de intentos en memoria (`core/rate_limit.py`) y `--proxy-headers` en `entrypoint.sh` para ver la IP real tras el proxy de Render. Envío de correos con la API de Brevo (`services/email.py`; en local se escriben en el log). Corregido: los enlaces de invitación `/invitacion/<token>` no funcionaban (el router los redirigía al inicio y se perdía el token); ahora llevan al registro/login y la invitación se aplica sola. Corregido: con contraseña incorrecta la página de login se recargaba y no se veía el error (el interceptor de 401 actuaba también sobre `/auth/login`). El asistente IA muestra un mensaje claro cuando se agota la cuota de Groq en vez de un error genérico. Añadido `CompraAnio` a `models/__init__.py` (sin él, `alembic --autogenerate` proponía borrar la tabla de compras). Tests nuevos: `test_auth_cuenta.py`, `test_agente.py`. |
 | 2026-09-21 | Quitada la tarjeta "Ingresos" del dashboard de inicio: mostraba la suma de ventas de todos los años en vez de solo el año en curso, pese a que tanto la query del backend como la petición del frontend ya filtraban por `anio`. Se probaron varios ajustes en el filtrado sin que el problema se reprodujera de forma consistente; sospecha sin confirmar: registros huérfanos en `ventas_anio` que quedan al borrar una venta desde el historial (`eliminar_historial` no limpia su `VentaAnio` asociada). La tarjeta "Ventas {año}" (contador) se mantiene, ya que esa sí mostraba el número correcto. Pendiente: revisar los datos de `ventas_anio` en producción y, si procede, limpiar los huérfanos al borrar del historial antes de reintroducir el importe. |
 | 2026-09-18 | Añadido dictado por voz al asistente IA: botón de micrófono en el chat que transcribe la voz a texto usando la Web Speech API nativa del navegador (`use-speech-recognition.ts`), sin necesidad de backend ni servicios externos. Disponible en Chrome, Edge y navegadores basados en Chromium (incluido Chrome para Android); se avisa cuando el navegador no lo soporta o se deniega el permiso del micrófono. |
 | 2026-08-23 | Preparado el despliegue en producción (Vercel + Render + Neon): `entrypoint.sh` para aplicar migraciones y respetar el puerto dinámico de Render; `CORS_ORIGINS` configurable por variable de entorno en `main.py`; pool de conexiones a BD dimensionado para ~20 usuarios concurrentes (`pool_size=10, max_overflow=10`); `VITE_API_URL` para apuntar el frontend al backend desplegado; `vercel.json` con fallback SPA; `render.yaml` como Blueprint del backend. Añadido soporte **PWA** instalable (manifest, iconos, service worker vía `vite-plugin-pwa`) para poder instalar la app en el móvil sin pasar por el navegador. |

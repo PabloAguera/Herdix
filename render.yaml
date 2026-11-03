@@ -28,8 +28,19 @@ services:
       - key: AGENTE_MODEL
         value: openai/gpt-oss-120b
 
-      # ─── Acceso ─────────────────────────────────────────────────────────
-      - key: ALLOWED_EMAILS
+      # ─── Correo (Brevo) ─────────────────────────────────────────────────
+      # Registro abierto con verificación de email y recuperación de contraseña.
+      # Se usa la API HTTP de Brevo porque Render (plan gratuito) bloquea SMTP.
+      - key: BREVO_API_KEY
+        sync: false
+      # Remitente verificado en Brevo (Senders & IP → Senders)
+      - key: EMAIL_REMITENTE
+        sync: false
+      - key: EMAIL_REMITENTE_NOMBRE
+        value: Herdix
+      # URL pública del frontend, para los enlaces de los correos
+      # Ejemplo: https://herdix.vercel.app
+      - key: FRONTEND_URL
         sync: false
 
       # ─── CORS ───────────────────────────────────────────────────────────

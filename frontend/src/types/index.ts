@@ -4,6 +4,7 @@ export interface Usuario {
   id: number;
   nombre: string;
   email: string;
+  email_verificado: boolean;
   created_at: string;
 }
 

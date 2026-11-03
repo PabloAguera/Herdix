@@ -32,6 +32,11 @@ def get_current_user(
     if usuario is None:
         raise credentials_exception
 
+    # Tokens emitidos antes de un cambio de contraseña dejan de ser válidos.
+    # Los tokens antiguos (sin "ver") equivalen a la versión 0.
+    if payload.get("ver", 0) != usuario.token_version:
+        raise credentials_exception
+
     return usuario
 
 

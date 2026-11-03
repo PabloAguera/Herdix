@@ -1,4 +1,5 @@
 """Tests de ganaderías e invitaciones."""
+from app.tests.conftest import token_de_enlace
 import pytest
 
 
@@ -44,14 +45,15 @@ def test_revocar_invitacion(client, usuario_y_token, ganaderia):
     assert resp.status_code == 204
 
 
-def test_acceso_denegado_sin_pertenencia(client, ganaderia):
+def test_acceso_denegado_sin_pertenencia(client, ganaderia, bandeja):
     """Un usuario nuevo no puede ver una ganadería ajena."""
-    # Registrar otro usuario
-    otro = client.post("/auth/register", json={
+    # Registrar otro usuario y confirmar su email
+    client.post("/auth/register", json={
         "nombre": "Otro",
         "email": "otro@test.es",
         "password": "12345678",
     })
+    client.post("/auth/verificar-email", json={"token": token_de_enlace(bandeja[-1])})
     token_otro = client.post("/auth/login", json={
         "email": "otro@test.es",
         "password": "12345678",

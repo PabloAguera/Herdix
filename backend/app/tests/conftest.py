@@ -11,8 +11,11 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.db.database import Base, get_db
 from app.main import app
+from app.models.usuario import Usuario
+from app.services import email as email_service
 
 # BD de test: misma instancia PostgreSQL, base de datos separada
 TEST_DATABASE_URL = settings.DATABASE_URL.replace(
@@ -45,6 +48,25 @@ def db():
         session.close()
 
 
+@pytest.fixture(autouse=True)
+def limpiar_estado():
+    """Cada test empieza sin intentos acumulados ni correos en la bandeja de desarrollo."""
+    limiter.reset()
+    email_service.BANDEJA_DESARROLLO.clear()
+    yield
+
+
+@pytest.fixture()
+def bandeja():
+    """Correos 'enviados' durante el test (sin BREVO_API_KEY no salen de la app)."""
+    return email_service.BANDEJA_DESARROLLO
+
+
+def token_de_enlace(correo) -> str:
+    """Extrae el token del enlace incluido en un correo de la bandeja de desarrollo."""
+    return correo.texto.split("token=")[1].split()[0]
+
+
 @pytest.fixture()
 def client(db):
     def override_get_db():
@@ -71,6 +93,12 @@ def usuario_y_token(client):
     resp = client.post("/auth/register", json=payload)
     assert resp.status_code == 201, resp.json()
     usuario = resp.json()
+
+    # Simula que el usuario ha confirmado su email
+    db = TestingSessionLocal()
+    db.query(Usuario).filter_by(id=usuario["id"]).update({"email_verificado": True})
+    db.commit()
+    db.close()
 
     login = client.post("/auth/login", json={
         "email": payload["email"],

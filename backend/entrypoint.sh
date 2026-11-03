@@ -9,4 +9,6 @@ echo "Aplicando migraciones de base de datos..."
 alembic upgrade head
 
 echo "Arrancando servidor..."
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
+# --proxy-headers: Render pone la IP real del cliente en X-Forwarded-For
+# (la usa el límite de intentos de login/registro).
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --proxy-headers --forwarded-allow-ips="*"

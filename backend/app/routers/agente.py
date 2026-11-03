@@ -1,13 +1,13 @@
 """
 Router del asistente IA de Herdix.
-Usa el SDK de Anthropic con tool-use para consultar la base de datos
+Usa Groq (API compatible con OpenAI) con tool-use para consultar la base de datos
 y responder preguntas en lenguaje natural sobre la ganadería.
 """
 import json
 import os
 from datetime import date, datetime
 
-from openai import OpenAI
+from openai import APIConnectionError, APIStatusError, OpenAI, RateLimitError
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -41,7 +41,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     respuesta: str
 
-# ─── Cliente Anthropic (singleton) ───────────────────────────────────────────
+# ─── Cliente Groq ───────────────────────────────────────────
 
 def _get_client() -> OpenAI:
     api_key = os.environ.get("GROQ_API_KEY", "")
@@ -523,19 +523,32 @@ def chat(
     ]
     mensajes.append({"role": "user", "content": body.mensaje})
 
-    modelo = os.environ.get("AGENTE_MODEL", "llama-3.3-70b-versatile")
+    modelo = os.environ.get("AGENTE_MODEL", "openai/gpt-oss-120b")
 
     # Insertar system prompt al inicio del historial
     mensajes = [{"role": "system", "content": system_prompt}] + mensajes
 
     # Bucle agente: max 8 rondas de tool-use para evitar loops infinitos
     for _ in range(8):
-        respuesta = cliente.chat.completions.create(
-            model=modelo,
-            messages=mensajes,   # type: ignore[arg-type]
-            tools=HERRAMIENTAS,  # type: ignore[arg-type]
-            max_tokens=2048,
-        )
+        try:
+            respuesta = cliente.chat.completions.create(
+                model=modelo,
+                messages=mensajes,   # type: ignore[arg-type]
+                tools=HERRAMIENTAS,  # type: ignore[arg-type]
+                max_tokens=2048,
+            )
+        except RateLimitError:
+            # Cuota de Groq agotada (plan gratuito: límite diario/por minuto de la cuenta)
+            raise HTTPException(
+                status_code=503,
+                detail="El asistente ha alcanzado su límite de uso por ahora. "
+                       "Prueba de nuevo en unos minutos; si persiste, mañana se restablece.",
+            )
+        except (APIConnectionError, APIStatusError):
+            raise HTTPException(
+                status_code=502,
+                detail="El asistente no está disponible en este momento. Inténtalo de nuevo más tarde.",
+            )
 
         choice = respuesta.choices[0]
 

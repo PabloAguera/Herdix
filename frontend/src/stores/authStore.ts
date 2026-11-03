@@ -9,6 +9,8 @@ interface AuthState {
   isAuthenticated: boolean;
 
   login: (email: string, password: string) => Promise<void>;
+  /** Inicia sesión con un token ya emitido (tras verificar el email o cambiar la contraseña). */
+  iniciarSesionConToken: (token: string) => Promise<void>;
   logout: () => void;
   fetchMe: () => Promise<void>;
 }
@@ -25,6 +27,12 @@ export const useAuthStore = create<AuthState>()(
         localStorage.setItem("access_token", access_token);
         const usuario = await authApi.me();
         set({ token: access_token, usuario, isAuthenticated: true });
+      },
+
+      iniciarSesionConToken: async (token) => {
+        localStorage.setItem("access_token", token);
+        const usuario = await authApi.me();
+        set({ token, usuario, isAuthenticated: true });
       },
 
       logout: () => {

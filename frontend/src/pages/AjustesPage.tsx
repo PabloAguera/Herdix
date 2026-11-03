@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { Invitacion, Miembro, TipoGanaderia } from "@/types";
+import { PasswordInput } from "@/components/auth/PasswordInput";
+import { mensajeError } from "@/lib/errores";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -499,7 +501,75 @@ function MiembrosCard({
   );
 }
 
-// ─── Página principal ────────────────────────────────────────────────────────
+// ─── Sub-sección: Cambiar contraseña ─────────────────────────────────────────
+
+function CambiarPasswordCard() {
+  const { usuario, iniciarSesionConToken } = useAuthStore();
+  const [actual, setActual] = useState("");
+  const [nueva, setNueva] = useState("");
+  const [repetida, setRepetida] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const handleGuardar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    if (nueva.length < 8) return setError("La nueva contraseña debe tener al menos 8 caracteres.");
+    if (nueva !== repetida) return setError("Las contraseñas nuevas no coinciden.");
+    setLoading(true);
+    try {
+      const { access_token } = await authApi.cambiarPassword(actual, nueva);
+      // El backend invalida las sesiones anteriores: guardamos el token nuevo para seguir dentro
+      await iniciarSesionConToken(access_token);
+      setActual(""); setNueva(""); setRepetida("");
+      setSuccess("Contraseña cambiada. Se ha cerrado la sesión en tus otros dispositivos.");
+    } catch (err) {
+      setError(mensajeError(err, "No se pudo cambiar la contraseña."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Cambiar contraseña</CardTitle>
+        {usuario && <CardDescription>{usuario.nombre} · {usuario.email}</CardDescription>}
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleGuardar} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="pw-actual">Contraseña actual</Label>
+            <PasswordInput id="pw-actual" autoComplete="current-password" value={actual}
+              onChange={(e) => setActual(e.target.value)} required disabled={loading} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="pw-nueva">Nueva contraseña</Label>
+              <PasswordInput id="pw-nueva" autoComplete="new-password" placeholder="Mínimo 8 caracteres"
+                value={nueva} onChange={(e) => setNueva(e.target.value)} required disabled={loading} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pw-repetida">Repite la nueva</Label>
+              <PasswordInput id="pw-repetida" autoComplete="new-password" value={repetida}
+                onChange={(e) => setRepetida(e.target.value)} required disabled={loading} />
+            </div>
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {success && <p className="text-sm text-green-600">{success}</p>}
+          <Button type="submit" disabled={loading || !actual || !nueva || !repetida}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Cambiar contraseña
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
 
 export function AjustesPage() {
   const { ganaderiaActual } = useGanaderiaStore();
@@ -510,9 +580,17 @@ export function AjustesPage() {
       <div>
         <h1 className="text-2xl font-bold">Ajustes</h1>
         <p className="text-muted-foreground text-sm">
-          Gestiona tus ganaderías y accesos.
+          Gestiona tu cuenta, tus ganaderías y accesos.
         </p>
       </div>
+
+      {/* ── Cuenta ── */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Tu cuenta
+        </h2>
+        <CambiarPasswordCard />
+      </section>
 
       {/* ── Crear ganadería ── */}
       <section className="space-y-3">

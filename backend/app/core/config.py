@@ -18,6 +18,24 @@ class Settings(BaseSettings):
     # (p. ej. para sustituir el identificador provisional por el de la Consejería)
     CROTAL_PLAZO_EDICION_DIAS: int = 60
 
+    # URL pública del frontend: se usa para construir los enlaces de los correos
+    # (verificar email, restablecer contraseña).
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # Envío de correos (Brevo, API HTTP — capa gratuita de 300 correos/día).
+    # Si BREVO_API_KEY está vacía, los correos no se envían: se escriben en el log
+    # del backend (útil en desarrollo local).
+    BREVO_API_KEY: str = ""
+    EMAIL_REMITENTE: str = ""
+    EMAIL_REMITENTE_NOMBRE: str = "Herdix"
+
+    # Caducidad de los enlaces enviados por correo
+    VERIFICACION_EMAIL_HORAS: int = 48
+    RESET_PASSWORD_MINUTOS: int = 30
+
+    # Límite de intentos en login/registro/recuperación (protección fuerza bruta y spam)
+    RATE_LIMIT_ENABLED: bool = True
+
     # Entorno
     ENVIRONMENT: str = "development"
 

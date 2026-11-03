@@ -19,11 +19,18 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Si la API devuelve 401, limpia el token y redirige al login
+// Endpoints públicos de autenticación: un 401 aquí significa "credenciales
+// incorrectas", no "sesión caducada", así que no se redirige (se muestra el error).
+const RUTAS_PUBLICAS = ["/auth/login", "/auth/register", "/auth/verificar-email",
+  "/auth/reenviar-verificacion", "/auth/olvide-password", "/auth/restablecer-password"];
+
+// Si la API devuelve 401 (sesión caducada o cerrada), limpia el token y redirige al login
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const url: string = error.config?.url ?? "";
+    const esPublica = RUTAS_PUBLICAS.some((r) => url.startsWith(r));
+    if (error.response?.status === 401 && !esPublica) {
       localStorage.removeItem("access_token");
       window.location.href = "/login";
     }

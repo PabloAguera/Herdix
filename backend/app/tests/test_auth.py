@@ -1,6 +1,8 @@
 """Tests de autenticación: registro, login, /me."""
 import pytest
 
+from app.tests.conftest import token_de_enlace
+
 
 def test_registro_exitoso(client):
     resp = client.post("/auth/register", json={
@@ -31,12 +33,13 @@ def test_registro_password_corta(client):
     assert resp.status_code == 422
 
 
-def test_login_exitoso(client):
+def test_login_exitoso(client, bandeja):
     client.post("/auth/register", json={
         "nombre": "Login User",
         "email": "login@test.es",
         "password": "mipassword",
     })
+    client.post("/auth/verificar-email", json={"token": token_de_enlace(bandeja[-1])})
     resp = client.post("/auth/login", json={
         "email": "login@test.es",
         "password": "mipassword",

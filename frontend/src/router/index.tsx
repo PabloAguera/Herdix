@@ -12,11 +12,19 @@ import { AjustesPage } from "@/pages/AjustesPage";
 import { ComprasPage } from "@/pages/ComprasPage";
 import { ReproduccionPage } from "@/pages/ReproduccionPage";
 import { AgentePage } from "@/pages/AgentePage";
+import { OlvidePasswordPage } from "@/pages/OlvidePasswordPage";
+import { RestablecerPasswordPage } from "@/pages/RestablecerPasswordPage";
+import { VerificarEmailPage } from "@/pages/VerificarEmailPage";
+import { InvitacionPage } from "@/pages/InvitacionPage";
 
 export const router = createBrowserRouter([
   // Rutas públicas
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
+  { path: "/olvide-password", element: <OlvidePasswordPage /> },
+  { path: "/restablecer-password", element: <RestablecerPasswordPage /> },
+  { path: "/verificar-email", element: <VerificarEmailPage /> },
+  { path: "/invitacion/:token", element: <InvitacionPage /> },
 
   // Rutas protegidas
   {

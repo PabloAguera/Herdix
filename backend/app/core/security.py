@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -20,11 +22,14 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(subject: Any, expires_delta: timedelta | None = None) -> str:
+def create_access_token(
+    subject: Any, expires_delta: timedelta | None = None, version: int = 0
+) -> str:
     """
     Crea un JWT de acceso.
     - subject: normalmente el ID de usuario
     - expires_delta: tiempo de vida del token (por defecto ACCESS_TOKEN_EXPIRE_MINUTES)
+    - version: token_version del usuario; si cambia (cambio de contraseña), el token deja de valer
     """
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -33,7 +38,7 @@ def create_access_token(subject: Any, expires_delta: timedelta | None = None) ->
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
-    to_encode = {"exp": expire, "sub": str(subject)}
+    to_encode = {"exp": expire, "sub": str(subject), "ver": version}
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
@@ -52,3 +57,15 @@ def decode_access_token(token: str) -> dict | None:
         return payload
     except JWTError:
         return None
+
+
+# ─── Tokens de un solo uso para enlaces por email ─────────────────────────────
+
+def generar_token_email() -> tuple[str, str]:
+    """Devuelve (token_en_claro, hash_sha256). El token en claro solo viaja en el email."""
+    token = secrets.token_urlsafe(32)
+    return token, hash_token_email(token)
+
+
+def hash_token_email(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
