@@ -1,6 +1,6 @@
 # Herdix
 
-Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permite llevar el censo de animales, registrar nacimientos, reproducción, compras y ventas, con un asistente IA integrado que responde preguntas en lenguaje natural sobre los datos de la explotación.
+Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permite llevar el censo de animales, registrar nacimientos, reproducción, compras, ventas y gastos de la explotación, con un asistente IA integrado que responde preguntas en lenguaje natural sobre los datos de la explotación.
 
 ---
 
@@ -32,7 +32,7 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 - **Docker Compose** — Orquestación de servicios en local (PostgreSQL + Backend)
 - **Groq API** — Inferencia LLM gratuita (modelo `openai/gpt-oss-120b`)
 - **Vercel** — Hosting del frontend (build estático + PWA instalable)
-- **Render** — Hosting del backend (contenedor Docker)
+- **Render** — Hosting del backend (contenedor Docker, plan Starter)
 - **Neon** — PostgreSQL gestionado en la nube (capa gratuita)
 - **Brevo** — Envío de correos transaccionales (capa gratuita, 300 correos/día)
 
@@ -122,7 +122,7 @@ Aplicación web de gestión ganadera para explotaciones bovinas y equinas. Permi
 
 ### Asistente IA
 - Chat en lenguaje natural para consultar datos de la ganadería
-- Basado en Groq (gratuito, 14.000 peticiones/día)
+- Basado en Groq (plan gratuito con cuota diaria por cuenta; si se agota, el asistente lo avisa con un mensaje claro en vez de fallar)
 - El agente dispone de **10 herramientas** para consultar la base de datos en tiempo real:
   - `estadisticas_ganaderia` — Resumen estadístico del censo
   - `listar_animales` — Filtros por sexo, rol, raza o nombre
@@ -150,7 +150,9 @@ herdix/
 │   │   ├── db/            # Conexión a base de datos
 │   │   ├── models/        # Modelos SQLAlchemy
 │   │   ├── routers/       # Endpoints API
-│   │   └── schemas/       # Esquemas Pydantic
+│   │   ├── schemas/       # Esquemas Pydantic
+│   │   ├── services/      # Envío de correos (Brevo)
+│   │   └── tests/         # Tests (pytest)
 │   ├── alembic/           # Migraciones de base de datos
 │   ├── entrypoint.sh      # Arranque en producción (migra + levanta uvicorn en $PORT)
 │   └── requirements.txt
@@ -158,7 +160,8 @@ herdix/
 │   ├── public/             # Iconos PWA, manifest, assets estáticos
 │   ├── src/
 │   │   ├── api/           # Clientes Axios por recurso
-│   │   ├── components/    # Componentes reutilizables (layout + ui)
+│   │   ├── components/    # Componentes reutilizables (auth, layout, ui)
+│   │   ├── lib/           # Utilidades (crotal, gastos, errores, invitaciones)
 │   │   ├── pages/         # Páginas de la aplicación
 │   │   ├── router/        # Definición de rutas
 │   │   ├── stores/        # Stores Zustand
@@ -248,6 +251,13 @@ docker exec herdix_backend alembic revision --autogenerate -m "descripcion"
 docker exec herdix_backend alembic upgrade head
 ```
 
+### Tests
+Los tests usan una base de datos aparte (`herdly_test_db`), que se crea sola al levantar PostgreSQL con Docker Compose:
+```bash
+docker exec herdix_backend pytest
+```
+No llaman a servicios externos: los correos se guardan en memoria y Groq y Brevo se simulan.
+
 ---
 
 ## Despliegue en producción
@@ -330,6 +340,18 @@ La app queda con su propio icono, se abre a pantalla completa y no requiere abri
 - Todos los endpoints verifican que el usuario pertenece a la ganadería que consulta
 - PostgreSQL no debe exponerse al exterior (sin mapeo de puerto `5432` en producción)
 - En producción usar HTTPS (recomendado: Caddy como proxy inverso)
+
+---
+
+## Pendiente
+
+Ideas ya habladas que aún no están implementadas:
+
+- **Registro de actividad**: ver qué acciones se hacen en cada ganadería y quién las hace (página Actividad e historial en la ficha de cada animal)
+- **Roles**: poder ascender a un colaborador a admin (varios admins por ganadería) y ocultar a los colaboradores las opciones de Ajustes que no pueden usar
+- **Invitaciones entre dispositivos**: ahora la invitación pendiente se guarda en el navegador donde se abrió el enlace; si se confirma el correo en otro dispositivo hay que volver a abrir el enlace. La idea es enviarla con el registro y aplicarla en el servidor
+- **Ingresos en el dashboard**: revisar los registros huérfanos de `ventas_anio` que quedan al borrar desde el historial antes de volver a mostrar el importe (ver changelog del 2026-09-21); es necesario también para un futuro balance ingresos − gastos
+- **Eliminar mi cuenta** (RGPD)
 
 ---
 
