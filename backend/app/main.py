@@ -1,12 +1,28 @@
+import logging
 import os
+import threading
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routers import auth, ganaderias, animales, ventas, compras, reproduccion, agente
+from app.services.email import comprobar_clave_brevo
+
+# Sin esto, los avisos de la app (p. ej. clave de Brevo inválida) no salen en los logs de Render
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # En segundo plano para no retrasar el arranque (Render espera a /health)
+    threading.Thread(target=comprobar_clave_brevo, daemon=True).start()
+    yield
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title="Herdix API",
     description="API de gestión ganadera vacuna",
     version="0.1.0",

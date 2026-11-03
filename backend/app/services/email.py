@@ -18,6 +18,7 @@ from app.core.config import settings
 logger = logging.getLogger("herdix.email")
 
 BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+BREVO_ACCOUNT_URL = "https://api.brevo.com/v3/account"
 
 
 @dataclass
@@ -55,6 +56,42 @@ def enviar_email(destinatario: str, asunto: str, texto: str, html_body: str) -> 
             logger.error("Error enviando email a %s: %s %s", destinatario, resp.status_code, resp.text)
     except httpx.HTTPError as exc:
         logger.error("Error de red enviando email a %s: %s", destinatario, exc)
+
+
+def comprobar_clave_brevo() -> bool | None:
+    """
+    Llama a Brevo al arrancar el backend para comprobar que la clave es válida.
+
+    Además mantiene la clave "activa": Brevo caduca las claves tras 90 días sin uso,
+    y en Render el backend arranca cada vez que alguien abre la app tras estar
+    dormido, así que basta con que la app se use para que la clave no caduque
+    aunque nadie se registre ni recupere la contraseña.
+
+    Devuelve True/False según la clave sea válida, o None si no hay clave o no se
+    pudo contactar con Brevo. Nunca lanza excepciones.
+    """
+    if not settings.BREVO_API_KEY:
+        logger.warning("BREVO_API_KEY no configurada: los correos se escribirán en el log en vez de enviarse.")
+        return None
+    try:
+        resp = httpx.get(
+            BREVO_ACCOUNT_URL,
+            headers={"api-key": settings.BREVO_API_KEY, "accept": "application/json"},
+            timeout=10,
+        )
+    except httpx.HTTPError as exc:
+        logger.error("No se pudo contactar con Brevo para comprobar la clave: %s", exc)
+        return None
+    if resp.status_code == 200:
+        logger.info("Clave de Brevo válida: el envío de correos está operativo.")
+        return True
+    logger.error(
+        "La clave de Brevo no es válida o ha caducado (HTTP %s: %s). "
+        "Los usuarios NO recibirán correos de verificación ni de recuperación de contraseña. "
+        "Genera una clave nueva en Brevo y actualiza BREVO_API_KEY en Render.",
+        resp.status_code, resp.text[:200],
+    )
+    return False
 
 
 # ─── Plantillas ───────────────────────────────────────────────────────────────
